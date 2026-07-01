@@ -128,7 +128,8 @@ def _print_strategy_report(strategy_name: str, metrics: PerformanceMetrics) -> N
     print(f"Largest Winner: {_format_optional_signed_percent(metrics.largest_winner_percent)}")
     print(f"Largest Loser: {_format_optional_signed_percent(metrics.largest_loser_percent)}")
     print(f"Average Hold: {_format_optional_bars(metrics.average_holding_period_bars)}")
-    print(f"Trades: {metrics.total_trades}")
+    print(f"Completed Trades: {metrics.total_trades}")
+    print(f"Open Position: {_format_yes_no(metrics.has_open_position)}")
     print(f"Exposure: {_format_percent(metrics.exposure_time_percent)}")
     print("-" * 50)
     print()
@@ -205,6 +206,13 @@ def _format_strategy_name(item: StrategyMetrics | None) -> str:
     if item is None:
         return "N/A"
     return item.strategy_name
+
+
+def _format_yes_no(value: bool) -> str:
+    """Format a boolean value as Yes or No."""
+    if value:
+        return "Yes"
+    return "No"
 
 
 if __name__ == "__main__":
