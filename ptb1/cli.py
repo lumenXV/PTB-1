@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from ptb1.historian import load_price_history
+from ptb1.learning import GlossaryEntry, StrategyEducation, get_glossary_entries
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import get_available_strategies
 from ptb1.trader import Backtester
@@ -42,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run all CSV datasets in the dataset directory.",
     )
     parser.add_argument(
+        "--learning",
+        action="store_true",
+        help="Print read-only strategy education and glossary entries.",
+    )
+    parser.add_argument(
         "--cash",
         type=float,
         default=10_000.0,
@@ -51,8 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """Run strategies against one dataset or every discovered dataset."""
+    """Run strategies against one dataset, all datasets, or Learning Mode."""
     args = build_parser().parse_args()
+    if args.learning:
+        _print_learning_mode()
+        return
+
     dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
     dataset_metrics = [_run_dataset(path, args.cash) for path in dataset_paths]
 
@@ -66,6 +76,59 @@ def main() -> None:
 
     if len(dataset_metrics) > 1:
         _print_cross_dataset_summary(summarize_across_datasets(dataset_metrics))
+
+
+def _print_learning_mode() -> None:
+    """Print read-only Learning Mode content."""
+    print("PTB-1 Learning Mode")
+    print("Read-only educational explanations. No backtests or trades are run.")
+    print()
+    print("Strategy Education")
+    for strategy in get_available_strategies():
+        _print_strategy_education(strategy.name, strategy.education)
+
+    print("Glossary")
+    for entry in get_glossary_entries():
+        _print_glossary_entry(entry)
+
+
+def _print_strategy_education(strategy_name: str, education: StrategyEducation) -> None:
+    """Print one strategy education card."""
+    print("-" * 50)
+    print(f"Strategy: {strategy_name}")
+    print(f"Description: {education.description}")
+    print(f"Purpose: {education.purpose}")
+    print("Strengths:")
+    for item in education.strengths:
+        print(f"- {item}")
+    print("Weaknesses:")
+    for item in education.weaknesses:
+        print(f"- {item}")
+    print(f"Best Market Conditions: {education.best_market_conditions}")
+    print(f"Worst Market Conditions: {education.worst_market_conditions}")
+    print(f"Typical Holding Period: {education.typical_holding_period}")
+    print(f"Risk Level: {education.risk_level}")
+    print("Common Mistakes:")
+    for item in education.common_mistakes:
+        print(f"- {item}")
+    print("-" * 50)
+    print()
+
+
+def _print_glossary_entry(entry: GlossaryEntry) -> None:
+    """Print one glossary entry."""
+    print("-" * 50)
+    print(entry.term)
+    print(f"What It Is: {entry.what_it_is}")
+    print(f"Why Traders Use It: {entry.why_traders_use_it}")
+    print("Advantages:")
+    for item in entry.advantages:
+        print(f"- {item}")
+    print("Limitations:")
+    for item in entry.limitations:
+        print(f"- {item}")
+    print("-" * 50)
+    print()
 
 
 def _discover_dataset_paths(data_dir: Path) -> list[Path]:
