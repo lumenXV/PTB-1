@@ -51,6 +51,34 @@ class ComparisonSummary:
     research_notes: list[str]
 
 
+@dataclass(frozen=True)
+class DatasetMetrics:
+    """Metrics and summary for one dataset."""
+
+    dataset_name: str
+    strategy_metrics: list[StrategyMetrics]
+    summary: ComparisonSummary
+
+
+@dataclass(frozen=True)
+class CrossDatasetStrategySummary:
+    """Aggregated strategy metrics across datasets."""
+
+    strategy_name: str
+    average_return_percent: float
+    average_drawdown_percent: float
+    wins: int
+    dataset_count: int
+
+
+@dataclass(frozen=True)
+class CrossDatasetSummary:
+    """Summary of strategy performance across datasets."""
+
+    strategy_summaries: list[CrossDatasetStrategySummary]
+    overall_winner: CrossDatasetStrategySummary
+
+
 def calculate_metrics(result: BacktestResult) -> PerformanceMetrics:
     """Calculate research performance metrics for a backtest result."""
     total_return = (result.ending_equity - result.starting_cash) / result.starting_cash
@@ -106,6 +134,36 @@ def compare_strategy_metrics(strategy_metrics: list[StrategyMetrics]) -> Compari
             least_trades=least_trades,
         ),
     )
+
+
+def summarize_across_datasets(dataset_metrics: list[DatasetMetrics]) -> CrossDatasetSummary:
+    """Calculate strategy averages and winner counts across datasets."""
+    if not dataset_metrics:
+        raise ValueError("At least one dataset metric is required.")
+
+    strategy_names = sorted({item.strategy_name for dataset in dataset_metrics for item in dataset.strategy_metrics})
+    strategy_summaries: list[CrossDatasetStrategySummary] = []
+
+    for strategy_name in strategy_names:
+        matching_metrics = [
+            item.metrics
+            for dataset in dataset_metrics
+            for item in dataset.strategy_metrics
+            if item.strategy_name == strategy_name
+        ]
+        wins = sum(1 for dataset in dataset_metrics if dataset.summary.overall_winner.strategy_name == strategy_name)
+        strategy_summaries.append(
+            CrossDatasetStrategySummary(
+                strategy_name=strategy_name,
+                average_return_percent=sum(metric.total_return_percent for metric in matching_metrics) / len(matching_metrics),
+                average_drawdown_percent=sum(metric.max_drawdown_percent for metric in matching_metrics) / len(matching_metrics),
+                wins=wins,
+                dataset_count=len(matching_metrics),
+            )
+        )
+
+    overall_winner = max(strategy_summaries, key=lambda item: item.average_return_percent)
+    return CrossDatasetSummary(strategy_summaries=strategy_summaries, overall_winner=overall_winner)
 
 
 def _cagr_percent(equity_curve: list[float]) -> float | None:
