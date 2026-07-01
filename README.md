@@ -4,6 +4,14 @@ PTB-1 is an AI trading research platform. It is not a live trading bot.
 
 Milestone 1 only backtests one simple strategy against historical CSV data. It does not include Robinhood, AI, machine learning, paper trading, live trading, or automation.
 
+## Project Brain
+
+- [Vision](VISION.md)
+- [Roadmap](ROADMAP.md)
+- [Architecture](ARCHITECTURE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
 ## Run Milestone 1
 
 From a clean clone with Python installed:
@@ -49,3 +57,5 @@ No module should do another employee's job.
 5. Robinhood MCP.
 6. AI researcher.
 7. Learning engine.
+8. Market Memory.
+9. Mobile Dashboard.
