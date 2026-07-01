@@ -20,22 +20,20 @@ Implemented:
 
 ## Milestone 2: Multiple Strategy Engine
 
-Goal: compare multiple strategies through a simple strategy plugin architecture.
+Status: complete.
 
-Planned strategies:
+Goal: compare multiple strategies on the same historical dataset.
 
-- Buy and Hold.
-- Simple Moving Average Cross.
-- RSI.
-- MACD.
+Implemented:
 
-Display:
-
-- Return.
-- Drawdown.
-- Sharpe.
-- Trades.
-- Winner.
+- Explicit strategy registry.
+- Buy and Hold strategy.
+- Simple Moving Average Cross strategy.
+- RSI strategy.
+- MACD strategy.
+- Strategy comparison table.
+- Winner selection by highest total return.
+- Optional Sharpe ratio reporting.
 
 Out of scope:
 
