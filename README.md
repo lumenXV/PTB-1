@@ -2,7 +2,9 @@
 
 PTB-1 is an AI trading research platform. It is not a live trading bot.
 
-Milestone 2 runs multiple independent research strategies against the same historical CSV dataset and compares their results. It does not include Robinhood, AI, machine learning, paper trading, live trading, or automation.
+Milestone 2.5 strengthens PTB-1 as a research lab. It runs multiple independent research strategies against the same historical CSV dataset, prints structured research reports, compares key metrics, and emits mechanical notes based only on measured results.
+
+It does not include Robinhood, AI, machine learning, paper trading, live trading, optimization, or automation.
 
 ## Project Brain
 
@@ -12,7 +14,7 @@ Milestone 2 runs multiple independent research strategies against the same histo
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Run Milestone 2
+## Run Milestone 2.5
 
 From a clean clone with Python installed:
 
@@ -26,13 +28,13 @@ No third-party dependencies are required.
 
 ```mermaid
 flowchart LR
-    CLI["CLI Runner"] --> Historian["Historian\nload CSV price history"]
+    CLI["CLI Runner\ndisplay only"] --> Historian["Historian\nload CSV price history"]
     CLI --> Strategies["Strategies\nexplicit registry"]
     Strategies --> Researcher["Researcher\nshared strategy interface"]
-    CLI --> Trader["Trader\nrun backtests"]
+    CLI --> Trader["Trader\nexecution facts only"]
     Trader --> RiskManager["Risk Manager\napprove position changes"]
     Trader --> ValidatorInput["Backtest Results"]
-    CLI --> Validator["Validator\ncalculate metrics"]
+    CLI --> Validator["Validator\nall metrics + notes"]
     ValidatorInput --> Validator
 ```
 
@@ -43,10 +45,10 @@ flowchart LR
 | Historian | `ptb1/historian.py` | Load historical market data. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies. |
-| Trader | `ptb1/trader.py` | Run research backtests. |
+| Trader | `ptb1/trader.py` | Run backtests and record execution facts. |
 | Risk Manager | `ptb1/risk_manager.py` | Approve or reject position changes. |
-| Validator | `ptb1/validator.py` | Calculate performance metrics. |
-| CLI Runner | `ptb1/cli.py` | Wire the modules together for command-line use. |
+| Validator | `ptb1/validator.py` | Calculate metrics, comparison winners, and mechanical notes. |
+| CLI Runner | `ptb1/cli.py` | Display reports. |
 
 No module should do another employee's job.
 
@@ -54,10 +56,11 @@ No module should do another employee's job.
 
 1. Backtest one strategy. Done in Milestone 1.
 2. Support multiple strategies. Done in Milestone 2.
-3. Paper trading.
-4. Portfolio tracking.
-5. Robinhood MCP.
-6. AI researcher.
-7. Learning engine.
-8. Market Memory.
-9. Mobile Dashboard.
+3. Research Lab. Done in Milestone 2.5.
+4. Paper trading.
+5. Portfolio tracking.
+6. Robinhood MCP.
+7. AI researcher.
+8. Learning engine.
+9. Market Memory.
+10. Mobile Dashboard.
