@@ -13,10 +13,11 @@ If the answer is no, do not implement it.
 ```mermaid
 flowchart LR
     CLI["CLI Runner"] --> Historian["Historian"]
-    CLI --> Researcher["Researcher"]
+    CLI --> Strategies["Strategies"]
+    Strategies --> Researcher["Researcher"]
     CLI --> Trader["Trader"]
     Trader --> RiskManager["Risk Manager"]
-    Trader --> Result["Backtest Result"]
+    Trader --> Result["Backtest Results"]
     CLI --> Validator["Validator"]
     Result --> Validator
 ```
@@ -44,14 +45,29 @@ Module: `ptb1/researcher.py`
 
 Responsibilities:
 
-- Define strategies.
-- Generate buy, hold, and sell signals.
+- Define strategy signals.
+- Define the shared strategy interface.
 
 Must not:
 
 - Execute trades.
 - Size positions.
 - Calculate portfolio results.
+
+### Strategies
+
+Module: `ptb1/strategies.py`
+
+Responsibilities:
+
+- Implement independent research strategies.
+- Expose the explicit strategy registry.
+
+Must not:
+
+- Execute trades.
+- Calculate performance metrics.
+- Load datasets.
 
 ### Trader
 
@@ -78,11 +94,15 @@ Responsibilities:
 - Calculate performance metrics.
 - Report validation statistics.
 
+Current metrics include:
+
+- Return.
+- Drawdown.
+- Optional Sharpe ratio.
+
 Future metrics include:
 
 - Win rate.
-- Sharpe ratio.
-- Drawdown.
 - CAGR.
 - Profit factor.
 - Expectancy.
