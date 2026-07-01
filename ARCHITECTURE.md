@@ -12,7 +12,8 @@ If the answer is no, do not implement it.
 
 ```mermaid
 flowchart LR
-    CLI["CLI Runner"] --> Historian["Historian"]
+    CLI["CLI Runner"] --> DatasetFiles["datasets/*.csv"]
+    CLI --> Historian["Historian"]
     CLI --> Strategies["Strategies"]
     Strategies --> Researcher["Researcher"]
     CLI --> Trader["Trader"]
@@ -21,6 +22,18 @@ flowchart LR
     CLI --> Validator["Validator"]
     Result --> Validator
 ```
+
+## Dataset Storage
+
+Historical datasets live in `datasets/` as plain CSV files.
+
+Each CSV uses this format:
+
+```csv
+symbol,date,open,high,low,close,volume
+```
+
+Dataset names come from filenames without `.csv`.
 
 ## Employees
 
@@ -68,6 +81,7 @@ Must not:
 - Execute trades.
 - Calculate performance metrics.
 - Load datasets.
+- Know dataset names.
 
 ### Trader
 
@@ -84,6 +98,7 @@ Must not:
 
 - Create strategies.
 - Load datasets.
+- Know dataset names.
 - Calculate statistics.
 - Generate research notes.
 
@@ -96,6 +111,7 @@ Responsibilities:
 - Calculate performance metrics.
 - Calculate comparison winners.
 - Generate mechanical notes supported by measured metrics.
+- Calculate cross-dataset summaries.
 
 Current metrics include:
 
@@ -113,10 +129,9 @@ Current metrics include:
 - Average holding period.
 - Total trades.
 - Exposure time.
-
-Future metrics include:
-
-- Additional trade statistics as needed for strategy validation.
+- Average return across datasets.
+- Average drawdown across datasets.
+- Dataset win count.
 
 ### Risk Manager
 
@@ -140,9 +155,12 @@ Module: `ptb1/cli.py`
 
 Responsibilities:
 
+- Select one dataset or all datasets.
+- Orchestrate strategy runs.
 - Display strategy research reports.
 - Display comparison summaries.
 - Display research notes.
+- Display cross-dataset summaries.
 
 Must not:
 
