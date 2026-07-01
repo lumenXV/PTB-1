@@ -2,7 +2,7 @@
 
 PTB-1 is an AI trading research platform. It is not a live trading bot.
 
-Milestone 1 only backtests one simple strategy against historical CSV data. It does not include Robinhood, AI, machine learning, paper trading, live trading, or automation.
+Milestone 2 runs multiple independent research strategies against the same historical CSV dataset and compares their results. It does not include Robinhood, AI, machine learning, paper trading, live trading, or automation.
 
 ## Project Brain
 
@@ -12,7 +12,7 @@ Milestone 1 only backtests one simple strategy against historical CSV data. It d
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Run Milestone 1
+## Run Milestone 2
 
 From a clean clone with Python installed:
 
@@ -27,10 +27,11 @@ No third-party dependencies are required.
 ```mermaid
 flowchart LR
     CLI["CLI Runner"] --> Historian["Historian\nload CSV price history"]
-    CLI --> Researcher["Researcher\nstrategy interface + Buy and Hold"]
-    CLI --> Trader["Trader\nrun backtest"]
+    CLI --> Strategies["Strategies\nexplicit registry"]
+    Strategies --> Researcher["Researcher\nshared strategy interface"]
+    CLI --> Trader["Trader\nrun backtests"]
     Trader --> RiskManager["Risk Manager\napprove position changes"]
-    Trader --> ValidatorInput["Backtest Result"]
+    Trader --> ValidatorInput["Backtest Results"]
     CLI --> Validator["Validator\ncalculate metrics"]
     ValidatorInput --> Validator
 ```
@@ -41,7 +42,8 @@ flowchart LR
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load historical market data. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
-| Trader | `ptb1/trader.py` | Run the research backtest. |
+| Strategies | `ptb1/strategies.py` | Implement independent research strategies. |
+| Trader | `ptb1/trader.py` | Run research backtests. |
 | Risk Manager | `ptb1/risk_manager.py` | Approve or reject position changes. |
 | Validator | `ptb1/validator.py` | Calculate performance metrics. |
 | CLI Runner | `ptb1/cli.py` | Wire the modules together for command-line use. |
@@ -51,7 +53,7 @@ No module should do another employee's job.
 ## Roadmap
 
 1. Backtest one strategy. Done in Milestone 1.
-2. Support multiple strategies.
+2. Support multiple strategies. Done in Milestone 2.
 3. Paper trading.
 4. Portfolio tracking.
 5. Robinhood MCP.
