@@ -33,7 +33,7 @@ class BacktestResult:
 
 
 class Backtester:
-    """Simple long-only backtester for Milestone 1."""
+    """Simple long-only backtester for research strategies."""
 
     def __init__(self, starting_cash: float, risk_manager: RiskManager) -> None:
         """Create a backtester with starting cash and a risk manager."""
@@ -51,9 +51,11 @@ class Backtester:
         position_size = 0
         trades: list[Trade] = []
         equity_curve: list[float] = []
+        history: list[PriceBar] = []
 
         for bar in prices:
-            signal = strategy.generate_signal(bar, position_size)
+            history.append(bar)
+            signal = strategy.generate_signal(history, position_size)
             if self.risk_manager.approve(signal, cash, bar.close, position_size):
                 if signal is Signal.BUY:
                     quantity = int(cash // bar.close)
