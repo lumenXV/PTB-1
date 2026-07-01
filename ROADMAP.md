@@ -35,12 +35,27 @@ Implemented:
 - Winner selection by highest total return.
 - Optional Sharpe ratio reporting.
 
+## Milestone 2.5: Research Lab
+
+Status: complete.
+
+Goal: understand why strategies perform the way they do before any paper trading or broker integration.
+
+Implemented:
+
+- Expanded Validator-owned metrics.
+- Structured research report per strategy.
+- Comparison summary across strategies.
+- Mechanical research notes based only on measured metrics.
+- Archive candidate notes without creating Strategy Graveyard files.
+
 Out of scope:
 
 - Parameter optimization.
 - AI.
 - Machine learning.
 - Robinhood.
+- Live trading.
 - Automation.
 
 ## Milestone 3: Paper Trading
