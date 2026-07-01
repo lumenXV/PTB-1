@@ -1,4 +1,4 @@
-"""Researcher: define strategy interfaces and research strategies."""
+"""Researcher: define strategy interfaces and research signals."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ptb1.historian import PriceBar
 
 
 class Signal(Enum):
-    """A strategy decision for a single bar."""
+    """A strategy decision for the current price history."""
 
     BUY = "buy"
     HOLD = "hold"
@@ -21,18 +21,6 @@ class Strategy(Protocol):
 
     name: str
 
-    def generate_signal(self, current_bar: PriceBar, position_size: int) -> Signal:
-        """Return the strategy signal for the current price bar."""
+    def generate_signal(self, history: list[PriceBar], position_size: int) -> Signal:
+        """Return a signal using only price history available so far."""
         ...
-
-
-class BuyAndHoldStrategy:
-    """A tiny first strategy: buy once, then hold."""
-
-    name = "Buy and Hold"
-
-    def generate_signal(self, current_bar: PriceBar, position_size: int) -> Signal:
-        """Buy on the first available bar when no position exists."""
-        if position_size == 0:
-            return Signal.BUY
-        return Signal.HOLD
