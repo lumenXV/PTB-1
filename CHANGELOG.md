@@ -4,6 +4,14 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 3.1: Stability Harness
+
+- Added a small `unittest` stability harness.
+- Added invalid CSV fixtures for empty, header-only, missing-column, bad-number, and bad-date datasets.
+- Added Historian-owned CSV validation.
+- Updated CLI error display for dataset loading failures.
+- Updated GitHub Actions to run stability tests, one dataset, and all datasets.
+
 ## Learning Mode Side Feature
 
 - Added read-only Learning Mode framework.

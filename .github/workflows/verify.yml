@@ -17,6 +17,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Run stability tests
+        run: python -m unittest discover
+
       - name: Run one dataset
         run: python -m ptb1 --data datasets/sample_prices.csv
 

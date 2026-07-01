@@ -46,6 +46,7 @@ Module: `ptb1/historian.py`
 Responsibilities:
 
 - Load historical data.
+- Validate historical CSV shape and values.
 - Maintain historical datasets.
 
 Must not:
@@ -179,6 +180,7 @@ Responsibilities:
 
 - Select one dataset or all datasets.
 - Orchestrate strategy runs.
+- Display dataset loading errors.
 - Display strategy research reports.
 - Display comparison summaries.
 - Display research notes.

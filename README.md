@@ -36,6 +36,12 @@ Print Learning Mode education and glossary content:
 python -m ptb1 --learning
 ```
 
+Run the stability harness:
+
+```powershell
+python -m unittest discover
+```
+
 The root `sample_prices.csv` still works for backward compatibility:
 
 ```powershell
@@ -65,7 +71,7 @@ flowchart LR
 
 | Employee | Module | One responsibility |
 | --- | --- | --- |
-| Historian | `ptb1/historian.py` | Load historical market data. |
+| Historian | `ptb1/historian.py` | Load and validate historical market data. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |

@@ -58,24 +58,28 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     """Run strategies against one dataset, all datasets, or Learning Mode."""
-    args = build_parser().parse_args()
-    if args.learning:
-        _print_learning_mode()
-        return
+    try:
+        args = build_parser().parse_args()
+        if args.learning:
+            _print_learning_mode()
+            return
 
-    dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
-    dataset_metrics = [_run_dataset(path, args.cash) for path in dataset_paths]
+        dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
+        dataset_metrics = [_run_dataset(path, args.cash) for path in dataset_paths]
 
-    print("PTB-1 Milestone 3 Dataset Engine")
-    print(f"Datasets loaded: {len(dataset_metrics)}")
-    print(f"Starting cash: ${args.cash:,.2f}")
-    print()
+        print("PTB-1 Milestone 3 Dataset Engine")
+        print(f"Datasets loaded: {len(dataset_metrics)}")
+        print(f"Starting cash: ${args.cash:,.2f}")
+        print()
 
-    for dataset in dataset_metrics:
-        _print_dataset_report(dataset)
+        for dataset in dataset_metrics:
+            _print_dataset_report(dataset)
 
-    if len(dataset_metrics) > 1:
-        _print_cross_dataset_summary(summarize_across_datasets(dataset_metrics))
+        if len(dataset_metrics) > 1:
+            _print_cross_dataset_summary(summarize_across_datasets(dataset_metrics))
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}")
+        raise SystemExit(1) from exc
 
 
 def _print_learning_mode() -> None:
