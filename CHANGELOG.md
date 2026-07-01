@@ -4,6 +4,12 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Reporting Cleanup
+
+- Clarified `Trades` as `Completed Trades` in research reports.
+- Added `Open Position: Yes/No` report metadata from Validator.
+- Kept strategy logic, Trader behavior, and metric formulas unchanged.
+
 ## Milestone 3: Dataset Engine
 
 - Added the `datasets/` folder.
