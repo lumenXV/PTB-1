@@ -27,6 +27,7 @@ class PerformanceMetrics:
     average_holding_period_bars: float | None
     total_trades: int
     exposure_time_percent: float
+    has_open_position: bool
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ def calculate_metrics(result: BacktestResult) -> PerformanceMetrics:
         average_holding_period_bars=_average_holding_period_bars(result.completed_trades),
         total_trades=len(result.completed_trades),
         exposure_time_percent=_exposure_time_percent(result.position_history),
+        has_open_position=result.position_size > 0,
     )
 
 
