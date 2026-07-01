@@ -49,6 +49,22 @@ Implemented:
 - Mechanical research notes based only on measured metrics.
 - Archive candidate notes without creating Strategy Graveyard files.
 
+## Milestone 3: Dataset Engine
+
+Status: complete.
+
+Goal: run all strategies across multiple historical datasets.
+
+Implemented:
+
+- `datasets/` folder.
+- Default dataset at `datasets/sample_prices.csv`.
+- Demo datasets for trend-cycle and choppy-market behavior.
+- `--data` mode for one dataset.
+- `--all-datasets` mode for every CSV dataset in `datasets/`.
+- Cross-dataset strategy summaries owned by Validator.
+- Overall winner by highest average total return across datasets.
+
 Out of scope:
 
 - Parameter optimization.
@@ -58,30 +74,30 @@ Out of scope:
 - Live trading.
 - Automation.
 
-## Milestone 3: Paper Trading
+## Milestone 4: Paper Trading
 
 Run strategies against simulated live market conditions without placing real trades.
 
-## Milestone 4: Portfolio Engine
+## Milestone 5: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
 
-## Milestone 5: Robinhood MCP Integration
+## Milestone 6: Robinhood MCP Integration
 
 Integrate Robinhood through MCP only after paper trading proves the system is ready.
 
-## Milestone 6: AI Researcher
+## Milestone 7: AI Researcher
 
 Use AI to assist research only after strategy validation workflows are reliable.
 
-## Milestone 7: Learning Engine
+## Milestone 8: Learning Engine
 
 Learn from validated results without bypassing explainability or verification.
 
-## Milestone 8: Market Memory
+## Milestone 9: Market Memory
 
 Remember strategies, tests, failures, and compressed historical research summaries.
 
-## Milestone 9: Mobile Dashboard
+## Milestone 10: Mobile Dashboard
 
 Provide a focused dashboard for reviewing research state and results.
