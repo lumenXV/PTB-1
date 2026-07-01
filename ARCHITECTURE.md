@@ -16,6 +16,8 @@ flowchart LR
     CLI --> Historian["Historian"]
     CLI --> Strategies["Strategies"]
     Strategies --> Researcher["Researcher"]
+    Strategies --> Learning["Learning Mode"]
+    CLI --> Learning
     CLI --> Trader["Trader"]
     Trader --> RiskManager["Risk Manager"]
     Trader --> Result["Backtest Results"]
@@ -75,6 +77,7 @@ Responsibilities:
 
 - Implement independent research strategies.
 - Expose the explicit strategy registry.
+- Provide static education metadata.
 
 Must not:
 
@@ -82,6 +85,25 @@ Must not:
 - Calculate performance metrics.
 - Load datasets.
 - Know dataset names.
+
+### Learning Mode
+
+Module: `ptb1/learning.py`
+
+Responsibilities:
+
+- Provide plain-English strategy education.
+- Provide glossary entries.
+- Provide template-based explanations from static metadata or measured metrics.
+
+Must not:
+
+- Place trades.
+- Change strategies.
+- Change parameters.
+- Modify research results.
+- Modify risk rules.
+- Influence trading or backtest decisions.
 
 ### Trader
 
@@ -161,6 +183,7 @@ Responsibilities:
 - Display comparison summaries.
 - Display research notes.
 - Display cross-dataset summaries.
+- Display Learning Mode content.
 
 Must not:
 
