@@ -76,6 +76,7 @@ Module: `ptb1/trader.py`
 Responsibilities:
 
 - Execute backtests.
+- Record execution facts.
 - Execute paper trades in a future milestone.
 - Execute live trades only in a future milestone.
 
@@ -83,7 +84,8 @@ Must not:
 
 - Create strategies.
 - Load datasets.
-- Calculate final performance metrics.
+- Calculate statistics.
+- Generate research notes.
 
 ### Validator
 
@@ -92,21 +94,29 @@ Module: `ptb1/validator.py`
 Responsibilities:
 
 - Calculate performance metrics.
-- Report validation statistics.
+- Calculate comparison winners.
+- Generate mechanical notes supported by measured metrics.
 
 Current metrics include:
 
-- Return.
-- Drawdown.
-- Optional Sharpe ratio.
+- Total return.
+- CAGR when enough data exists.
+- Max drawdown.
+- Sharpe ratio.
+- Profit factor.
+- Expectancy.
+- Win rate.
+- Average winning trade.
+- Average losing trade.
+- Largest winner.
+- Largest loser.
+- Average holding period.
+- Total trades.
+- Exposure time.
 
 Future metrics include:
 
-- Win rate.
-- CAGR.
-- Profit factor.
-- Expectancy.
-- Trade statistics.
+- Additional trade statistics as needed for strategy validation.
 
 ### Risk Manager
 
@@ -124,6 +134,22 @@ Must not:
 - Create strategies.
 - Load historical data.
 
+### CLI Runner
+
+Module: `ptb1/cli.py`
+
+Responsibilities:
+
+- Display strategy research reports.
+- Display comparison summaries.
+- Display research notes.
+
+Must not:
+
+- Calculate metrics.
+- Generate strategy signals.
+- Execute trades.
+
 ## Strategy Graveyard
 
 A future milestone should maintain a Strategy Graveyard for failed strategies.
@@ -137,4 +163,4 @@ Each archived strategy should record:
 - Reason for failure.
 - Replacement strategy, if any.
 
-The goal is to avoid repeating failed research.
+Milestone 2.5 only prints archive candidate notes. It does not create Strategy Graveyard files.
