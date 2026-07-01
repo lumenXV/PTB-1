@@ -4,7 +4,9 @@ PTB-1 is an AI trading research platform. It is not a live trading bot.
 
 Milestone 3 adds a Dataset Engine. PTB-1 can run all strategies against one historical CSV dataset or every CSV dataset in `datasets/`, then compare strategy behavior across datasets.
 
-It does not include Robinhood, AI, machine learning, paper trading, live trading, optimization, or automation.
+Learning Mode is a read-only companion feature. It teaches what PTB-1 is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
+
+PTB-1 does not include Robinhood, AI, machine learning, paper trading, live trading, optimization, or automation.
 
 ## Project Brain
 
@@ -28,6 +30,12 @@ Run every dataset in `datasets/`:
 python -m ptb1 --all-datasets
 ```
 
+Print Learning Mode education and glossary content:
+
+```powershell
+python -m ptb1 --learning
+```
+
 The root `sample_prices.csv` still works for backward compatibility:
 
 ```powershell
@@ -44,6 +52,8 @@ flowchart LR
     CLI --> DatasetFiles["datasets/*.csv"]
     CLI --> Strategies["Strategies\nexplicit registry"]
     Strategies --> Researcher["Researcher\nshared strategy interface"]
+    Strategies --> Learning["Learning Mode\nread-only education"]
+    CLI --> Learning
     CLI --> Trader["Trader\nexecution facts only"]
     Trader --> RiskManager["Risk Manager\napprove position changes"]
     Trader --> ValidatorInput["Backtest Results"]
@@ -57,11 +67,12 @@ flowchart LR
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load historical market data. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
-| Strategies | `ptb1/strategies.py` | Implement independent research strategies. |
+| Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
+| Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
 | Trader | `ptb1/trader.py` | Run backtests and record execution facts. |
 | Risk Manager | `ptb1/risk_manager.py` | Approve or reject position changes. |
 | Validator | `ptb1/validator.py` | Calculate metrics, comparison winners, notes, and cross-dataset summaries. |
-| CLI Runner | `ptb1/cli.py` | Orchestrate runs and display reports. |
+| CLI Runner | `ptb1/cli.py` | Orchestrate runs and display reports or Learning Mode content. |
 
 No module should do another employee's job.
 
