@@ -9,7 +9,13 @@ from ptb1.historian import load_price_history
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import get_available_strategies
 from ptb1.trader import Backtester
-from ptb1.validator import PerformanceMetrics, StrategyMetrics, calculate_metrics, compare_strategy_metrics
+from ptb1.validator import (
+    ComparisonSummary,
+    PerformanceMetrics,
+    StrategyMetrics,
+    calculate_metrics,
+    compare_strategy_metrics,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,7 +86,7 @@ def _print_strategy_report(strategy_name: str, metrics: PerformanceMetrics) -> N
     print()
 
 
-def _print_summary(summary: object) -> None:
+def _print_summary(summary: ComparisonSummary) -> None:
     """Print the cross-strategy comparison summary and notes."""
     print("Comparison Summary")
     print(f"Best Return: {summary.best_return.strategy_name}")
