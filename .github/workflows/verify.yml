@@ -17,5 +17,5 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Run Milestone 1
+      - name: Run PTB-1
         run: python -m ptb1 --data sample_prices.csv
