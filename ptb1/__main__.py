@@ -1,9 +1,6 @@
-"""Temporary runnable bootstrap for PTB-1 initialization."""
+"""Run PTB-1 from ``python -m ptb1``."""
 
-
-def main() -> None:
-    """Run a tiny initialization check until the full skeleton is committed."""
-    print("PTB-1 initialization complete. Milestone 1 modules are being added.")
+from ptb1.cli import main
 
 
 if __name__ == "__main__":
