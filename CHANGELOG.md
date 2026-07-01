@@ -4,6 +4,14 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Learning Mode Side Feature
+
+- Added read-only Learning Mode framework.
+- Added strategy education metadata for current strategies.
+- Added glossary entries for common indicators and research metrics.
+- Added template-based explanation helpers.
+- Added `python -m ptb1 --learning` to print education and glossary content without running backtests.
+
 ## Reporting Cleanup
 
 - Clarified `Trades` as `Completed Trades` in research reports.
