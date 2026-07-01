@@ -4,6 +4,18 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 3: Dataset Engine
+
+- Added the `datasets/` folder.
+- Added `datasets/sample_prices.csv` as the default dataset path.
+- Added `datasets/trend_cycle.csv` demo data.
+- Added `datasets/choppy_market.csv` demo data.
+- Kept root `sample_prices.csv` for backward compatibility.
+- Added `--all-datasets` CLI mode.
+- Kept `--data` CLI mode for single-dataset runs.
+- Added Validator-owned cross-dataset summaries.
+- Updated GitHub Actions to run one dataset and all datasets.
+
 ## Milestone 2.5: Research Lab
 
 - Expanded Trader execution facts without moving statistics into Trader.
