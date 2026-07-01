@@ -4,6 +4,29 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 2.5: Research Lab
+
+- Expanded Trader execution facts without moving statistics into Trader.
+- Expanded Validator metrics:
+  - Total return.
+  - CAGR when enough data exists.
+  - Max drawdown.
+  - Sharpe ratio.
+  - Profit factor.
+  - Expectancy.
+  - Win rate.
+  - Average winning trade.
+  - Average losing trade.
+  - Largest winner.
+  - Largest loser.
+  - Average holding period.
+  - Total trades.
+  - Exposure time.
+- Added structured research reports for every strategy.
+- Added comparison summary winners.
+- Added mechanical research notes based only on measured statistics.
+- Added archive candidate notes without creating Strategy Graveyard files.
+
 ## Milestone 2: Multiple Strategy Engine
 
 - Added an explicit strategy registry.
