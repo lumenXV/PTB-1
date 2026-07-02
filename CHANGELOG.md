@@ -4,6 +4,14 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 4.5: Market Data Provider Interface
+
+- Added internal `MarketDataProvider` protocol.
+- Added internal `CSVProvider`.
+- Kept Historian as the single owner of CSV parsing, validation, and PriceBar creation.
+- Updated research and paper modes to use the internal CSVProvider.
+- Added provider tests without adding a user-facing provider CLI flag.
+
 ## Milestone 4: Paper Trading Engine
 
 - Added `ptb1/paper.py` for fake-money paper trading sessions.

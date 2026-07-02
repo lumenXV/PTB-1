@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ptb1.historian import load_price_history
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
+from ptb1.market_data import CSVProvider, MarketDataProvider
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
 from ptb1.risk_manager import RiskManager
@@ -79,12 +79,13 @@ def main() -> None:
         if args.learning:
             _print_learning_mode()
             return
+        market_data_provider = CSVProvider()
         if args.paper:
-            _run_paper_mode(args.data, args.strategy, args.cash, args.paper_log)
+            _run_paper_mode(args.data, args.strategy, args.cash, args.paper_log, market_data_provider)
             return
 
         dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
-        dataset_metrics = [_run_dataset(path, args.cash) for path in dataset_paths]
+        dataset_metrics = [_run_dataset(path, args.cash, market_data_provider) for path in dataset_paths]
 
         print("PTB-1 Milestone 3 Dataset Engine")
         print(f"Datasets loaded: {len(dataset_metrics)}")
@@ -162,10 +163,16 @@ def _discover_dataset_paths(data_dir: Path) -> list[Path]:
     return dataset_paths
 
 
-def _run_paper_mode(path: Path, strategy_name: str | None, starting_cash: float, show_log: bool) -> None:
+def _run_paper_mode(
+    path: Path,
+    strategy_name: str | None,
+    starting_cash: float,
+    show_log: bool,
+    market_data_provider: MarketDataProvider,
+) -> None:
     """Run one fake-money paper session and print the result."""
     strategy = _find_strategy(strategy_name)
-    prices = load_price_history(path)
+    prices = market_data_provider.load(path)
     result = PaperSession(starting_cash=starting_cash, risk_manager=RiskManager()).run(
         prices=prices,
         strategy=strategy,
@@ -288,9 +295,9 @@ def _print_trade_log(trade_log: list[PaperTrade]) -> None:
     print()
 
 
-def _run_dataset(path: Path, starting_cash: float) -> DatasetMetrics:
+def _run_dataset(path: Path, starting_cash: float, market_data_provider: MarketDataProvider) -> DatasetMetrics:
     """Run all strategies against one dataset."""
-    prices = load_price_history(path)
+    prices = market_data_provider.load(path)
     backtester = Backtester(starting_cash=starting_cash, risk_manager=RiskManager())
     strategy_metrics: list[StrategyMetrics] = []
 

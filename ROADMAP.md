@@ -107,6 +107,31 @@ Out of scope:
 - Slippage, commissions, partial fills, limits, stops, or latency.
 - File persistence.
 
+## Milestone 4.5: Market Data Provider Interface
+
+Status: complete.
+
+Goal: prepare PTB-1 for future market data sources without changing current behavior.
+
+Implemented:
+
+- Internal `MarketDataProvider` protocol.
+- Internal `CSVProvider`.
+- CSVProvider delegates to Historian.
+- Research mode uses the internal CSVProvider.
+- Paper mode uses the internal CSVProvider.
+
+Out of scope:
+
+- User-facing data provider CLI flags.
+- Yahoo implementation.
+- Robinhood.
+- Broker connections.
+- Live trading.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 5: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

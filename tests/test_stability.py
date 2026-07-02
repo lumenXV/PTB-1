@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from ptb1.historian import load_price_history
+from ptb1.market_data import CSVProvider
 from ptb1.paper import PaperSession
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
@@ -44,6 +45,21 @@ class HistorianValidationTests(unittest.TestCase):
         """An invalid date should be rejected."""
         with self.assertRaisesRegex(ValueError, "Invalid date"):
             load_price_history(FIXTURES / "bad_date.csv")
+
+
+class MarketDataProviderTests(unittest.TestCase):
+    """Verify the internal market data provider abstraction."""
+
+    def test_csv_provider_returns_historian_price_bars(self) -> None:
+        """CSVProvider should delegate to Historian and return the same bars."""
+        path = PROJECT_ROOT / "datasets" / "sample_prices.csv"
+
+        self.assertEqual(CSVProvider().load(path), load_price_history(path))
+
+    def test_csv_provider_uses_historian_validation(self) -> None:
+        """CSVProvider should surface Historian validation errors."""
+        with self.assertRaisesRegex(ValueError, "Invalid numeric value"):
+            CSVProvider().load(FIXTURES / "bad_number.csv")
 
 
 class CliStabilityTests(unittest.TestCase):

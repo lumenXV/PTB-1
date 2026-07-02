@@ -13,7 +13,8 @@ If the answer is no, do not implement it.
 ```mermaid
 flowchart LR
     CLI["CLI Runner"] --> DatasetFiles["datasets/*.csv"]
-    CLI --> Historian["Historian"]
+    CLI --> MarketData["Market Data Provider"]
+    MarketData --> Historian["Historian"]
     CLI --> Strategies["Strategies"]
     Strategies --> Researcher["Researcher"]
     Strategies --> Learning["Learning Mode"]
@@ -57,6 +58,26 @@ Must not:
 - Perform trading logic.
 - Generate signals.
 - Calculate strategy performance.
+
+### Market Data
+
+Module: `ptb1/market_data.py`
+
+Responsibilities:
+
+- Define the internal market data provider interface.
+- Provide the current CSV provider.
+- Delegate CSV loading to Historian.
+
+Must not:
+
+- Parse CSV files directly.
+- Validate CSV rows directly.
+- Create PriceBar objects directly.
+- Connect to Yahoo.
+- Connect to Robinhood.
+- Connect to brokers.
+- Fetch live data.
 
 ### Researcher
 
@@ -205,6 +226,7 @@ Module: `ptb1/cli.py`
 Responsibilities:
 
 - Select one dataset or all datasets.
+- Use the internal CSV market data provider.
 - Orchestrate strategy runs.
 - Display dataset loading errors.
 - Display strategy research reports.
