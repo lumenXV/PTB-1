@@ -132,26 +132,53 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
-## Milestone 5: Portfolio Engine
+## Milestone 5: Live Market Data Foundation
+
+Status: complete.
+
+Goal: prepare PTB-1 to retrieve live market data internally without changing the user workflow.
+
+Implemented:
+
+- Internal `MarketDataRequest`.
+- Internal `HTTPMarketProvider`.
+- Dependency-injected HTTP fetching for tests.
+- Provider response conversion into existing `PriceBar` objects.
+- Historian-owned PriceBar creation and validation for converted rows.
+- Clear errors for invalid symbols, network failures, timeouts, empty responses, malformed responses, and missing OHLCV fields.
+
+Out of scope:
+
+- User-facing market-data CLI commands.
+- Paper trading with live data.
+- Live trading.
+- Broker connections.
+- Robinhood.
+- Order placement.
+- AI.
+- Machine learning.
+- Optimization.
+
+## Milestone 6: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
 
-## Milestone 6: Robinhood MCP Integration
+## Milestone 7: Robinhood MCP Integration
 
 Integrate Robinhood through MCP only after paper trading proves the system is ready.
 
-## Milestone 7: AI Researcher
+## Milestone 8: AI Researcher
 
 Use AI to assist research only after strategy validation workflows are reliable.
 
-## Milestone 8: Learning Engine
+## Milestone 9: Learning Engine
 
 Learn from validated results without bypassing explainability or verification.
 
-## Milestone 9: Market Memory
+## Milestone 10: Market Memory
 
 Remember strategies, tests, failures, and compressed historical research summaries.
 
-## Milestone 10: Mobile Dashboard
+## Milestone 11: Mobile Dashboard
 
 Provide a focused dashboard for reviewing research state and results.

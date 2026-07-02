@@ -4,6 +4,7 @@ PTB-1 is an AI trading research platform. It is not a live trading bot.
 
 Milestone 4 adds a Paper Trading Engine. PTB-1 can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
 Milestone 4.5 adds an internal market data provider interface with CSV as the only current provider.
+Milestone 5 adds an internal HTTP market data foundation without adding public market-data commands or live trading.
 
 Learning Mode is a read-only companion feature. It teaches what PTB-1 is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -69,7 +70,7 @@ No third-party dependencies are required.
 flowchart LR
     CLI --> DatasetFiles["datasets/*.csv"]
     CLI["CLI Runner\ndisplay + orchestration"] --> MarketData["Market Data\nprovider interface"]
-    MarketData --> Historian["Historian\nload + validate CSV"]
+    MarketData --> Historian["Historian\ncreate + validate PriceBars"]
     CLI --> Strategies["Strategies\nexplicit registry"]
     Strategies --> Researcher["Researcher\nshared strategy interface"]
     Strategies --> Learning["Learning Mode\nread-only education"]
@@ -89,7 +90,7 @@ flowchart LR
 | Employee | Module | One responsibility |
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
-| Market Data | `ptb1/market_data.py` | Provide an internal interface for market data sources. |
+| Market Data | `ptb1/market_data.py` | Provide internal CSV and HTTP market data providers. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -109,9 +110,10 @@ No module should do another employee's job.
 4. Dataset Engine. Done in Milestone 3.
 5. Paper trading. Done in Milestone 4.
 6. Market data provider interface. Done in Milestone 4.5.
-7. Portfolio tracking.
-8. Robinhood MCP.
-9. AI researcher.
-10. Learning engine.
-11. Market Memory.
-12. Mobile Dashboard.
+7. Live market data foundation. Done in Milestone 5.
+8. Portfolio tracking.
+9. Robinhood MCP.
+10. AI researcher.
+11. Learning engine.
+12. Market Memory.
+13. Mobile Dashboard.

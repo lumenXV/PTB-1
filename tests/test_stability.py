@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from ptb1.historian import load_price_history
-from ptb1.market_data import CSVProvider
+from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataRequest
 from ptb1.paper import PaperSession
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
@@ -60,6 +60,63 @@ class MarketDataProviderTests(unittest.TestCase):
         """CSVProvider should surface Historian validation errors."""
         with self.assertRaisesRegex(ValueError, "Invalid numeric value"):
             CSVProvider().load(FIXTURES / "bad_number.csv")
+
+    def test_http_provider_converts_response_to_price_bars(self) -> None:
+        """HTTPMarketProvider should hide provider data and return PriceBars."""
+        provider = HTTPMarketProvider(fetcher=lambda request: _fake_market_response())
+
+        bars = provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
+
+        self.assertEqual(len(bars), 2)
+        self.assertEqual(bars[0].symbol, "PTB")
+        self.assertEqual(bars[0].date.isoformat(), "2024-01-01")
+        self.assertEqual(bars[0].close, 101.0)
+        self.assertEqual(bars[1].volume, 1100)
+
+    def test_http_provider_rejects_empty_response(self) -> None:
+        """HTTPMarketProvider should reject empty provider results."""
+        provider = HTTPMarketProvider(fetcher=lambda request: {"chart": {"result": [], "error": None}})
+
+        with self.assertRaisesRegex(ValueError, "Malformed market data response"):
+            provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
+
+    def test_http_provider_rejects_missing_ohlcv_fields(self) -> None:
+        """HTTPMarketProvider should reject responses missing OHLCV fields."""
+        response = _fake_market_response()
+        del response["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        provider = HTTPMarketProvider(fetcher=lambda request: response)
+
+        with self.assertRaisesRegex(ValueError, "Missing OHLCV"):
+            provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
+
+    def test_http_provider_reports_invalid_symbol(self) -> None:
+        """HTTPMarketProvider should reject provider invalid-symbol responses."""
+        provider = HTTPMarketProvider(
+            fetcher=lambda request: {"chart": {"result": None, "error": {"description": "Not Found"}}}
+        )
+
+        with self.assertRaisesRegex(ValueError, "Invalid market data symbol"):
+            provider.load(MarketDataRequest(symbol="BAD", period="5d", interval="1d"))
+
+    def test_http_provider_reports_network_failure(self) -> None:
+        """HTTPMarketProvider should normalize network failures."""
+        def failing_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise OSError("network unavailable")
+
+        provider = HTTPMarketProvider(fetcher=failing_fetcher)
+
+        with self.assertRaisesRegex(ValueError, "Network failure"):
+            provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
+
+    def test_http_provider_reports_timeout(self) -> None:
+        """HTTPMarketProvider should normalize timeouts."""
+        def timeout_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise TimeoutError
+
+        provider = HTTPMarketProvider(fetcher=timeout_fetcher)
+
+        with self.assertRaisesRegex(ValueError, "Timed out"):
+            provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
 
 
 class CliStabilityTests(unittest.TestCase):
@@ -151,3 +208,28 @@ class PaperSessionTests(unittest.TestCase):
         self.assertEqual(len(result.account.positions), 0)
         self.assertEqual(len(result.account.trade_log), 2)
         self.assertGreater(len(result.account.order_log), len(result.account.trade_log))
+
+
+def _fake_market_response() -> dict[str, object]:
+    """Return a small chart-style fake provider response."""
+    return {
+        "chart": {
+            "error": None,
+            "result": [
+                {
+                    "timestamp": [1704067200, 1704153600],
+                    "indicators": {
+                        "quote": [
+                            {
+                                "open": [100.0, 101.0],
+                                "high": [102.0, 103.0],
+                                "low": [99.0, 100.0],
+                                "close": [101.0, 102.0],
+                                "volume": [1000, 1100],
+                            }
+                        ]
+                    },
+                }
+            ],
+        }
+    }

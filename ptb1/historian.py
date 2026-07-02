@@ -6,6 +6,7 @@ import csv
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Mapping
 
 REQUIRED_COLUMNS = ("symbol", "date", "open", "high", "low", "close", "volume")
 
@@ -31,7 +32,7 @@ def load_price_history(path: Path) -> list[PriceBar]:
         reader = csv.DictReader(csv_file)
         _validate_columns(path, reader.fieldnames)
         for row in reader:
-            bars.append(_parse_price_bar(path, reader.line_num, row))
+            bars.append(create_price_bar(row, str(path), reader.line_num))
 
     if not bars:
         raise ValueError(f"No historical rows found in {path}.")
@@ -50,28 +51,30 @@ def _validate_columns(path: Path, fieldnames: list[str] | None) -> None:
         raise ValueError(f"Missing required column(s) in {path}: {missing}.")
 
 
-def _parse_price_bar(path: Path, line_number: int, row: dict[str, str]) -> PriceBar:
-    """Parse and validate one CSV row into a price bar."""
+def create_price_bar(row: Mapping[str, object], source: str, line_number: int) -> PriceBar:
+    """Parse and validate one historical data row into a price bar."""
     for column in REQUIRED_COLUMNS:
-        if row[column] == "":
-            raise ValueError(f"Missing value for '{column}' in {path} on line {line_number}.")
+        if column not in row:
+            raise ValueError(f"Missing required column(s) in {source}: {column}.")
+        if row[column] in ("", None):
+            raise ValueError(f"Missing value for '{column}' in {source} on line {line_number}.")
 
     try:
-        bar_date = date.fromisoformat(row["date"])
+        bar_date = date.fromisoformat(str(row["date"]))
     except ValueError as exc:
-        raise ValueError(f"Invalid date in {path} on line {line_number}: {row['date']}.") from exc
+        raise ValueError(f"Invalid date in {source} on line {line_number}: {row['date']}.") from exc
 
     try:
-        open_price = float(row["open"])
-        high_price = float(row["high"])
-        low_price = float(row["low"])
-        close_price = float(row["close"])
-        volume = int(row["volume"])
+        open_price = float(str(row["open"]))
+        high_price = float(str(row["high"]))
+        low_price = float(str(row["low"]))
+        close_price = float(str(row["close"]))
+        volume = int(str(row["volume"]))
     except ValueError as exc:
-        raise ValueError(f"Invalid numeric value in {path} on line {line_number}.") from exc
+        raise ValueError(f"Invalid numeric value in {source} on line {line_number}.") from exc
 
     return PriceBar(
-        symbol=row["symbol"],
+        symbol=str(row["symbol"]),
         date=bar_date,
         open=open_price,
         high=high_price,

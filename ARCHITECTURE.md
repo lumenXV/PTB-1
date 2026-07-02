@@ -67,17 +67,20 @@ Responsibilities:
 
 - Define the internal market data provider interface.
 - Provide the current CSV provider.
+- Provide the internal HTTP market provider foundation.
 - Delegate CSV loading to Historian.
+- Convert HTTP provider responses into Historian-compatible rows.
+- Hide provider-specific response formats.
 
 Must not:
 
 - Parse CSV files directly.
 - Validate CSV rows directly.
 - Create PriceBar objects directly.
-- Connect to Yahoo.
 - Connect to Robinhood.
 - Connect to brokers.
-- Fetch live data.
+- Place orders.
+- Expose provider-specific response objects outside the provider.
 
 ### Researcher
 
@@ -227,6 +230,7 @@ Responsibilities:
 
 - Select one dataset or all datasets.
 - Use the internal CSV market data provider.
+- Keep live market data provider internals out of the public CLI.
 - Orchestrate strategy runs.
 - Display dataset loading errors.
 - Display strategy research reports.

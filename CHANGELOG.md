@@ -4,6 +4,16 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 5: Live Market Data Foundation
+
+- Added internal `MarketDataRequest`.
+- Added internal `HTTPMarketProvider`.
+- Added dependency-injected HTTP fetching so unit tests do not require internet access.
+- Added provider response conversion into existing `PriceBar` objects.
+- Reused Historian-owned PriceBar creation and validation for converted provider rows.
+- Added clear errors for invalid symbols, network failures, timeouts, empty responses, malformed responses, and missing OHLCV fields.
+- Kept market data retrieval internal with no user-facing market-data CLI command.
+
 ## Milestone 4.5: Market Data Provider Interface
 
 - Added internal `MarketDataProvider` protocol.
