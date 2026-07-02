@@ -103,7 +103,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
     watchlist = Watchlist()
     market_provider = HTTPMarketProvider()
     while True:
-        print(render_status(build_status(started_at=started_at, data_dir=data_dir)))
+        print(render_status(build_status(started_at=started_at, data_dir=data_dir), watchlist))
         print(render_menu())
         try:
             choice = input("Select an option: ").strip()
@@ -129,8 +129,9 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
         print()
 
 
-def render_status(status: OperationsStatus) -> str:
+def render_status(status: OperationsStatus, watchlist: Watchlist | None = None) -> str:
     """Render the startup banner and platform status."""
+    watching_lines = _render_watchlist_lines(watchlist)
     return "\n".join(
         [
             "=" * 56,
@@ -159,7 +160,7 @@ def render_status(status: OperationsStatus) -> str:
             "",
             "Watching",
             "---------------------------------------",
-            "No symbols selected.",
+            *watching_lines,
             "",
             "Session",
             "---------------------------------------",
@@ -200,21 +201,7 @@ def render_market_intelligence(watchlist: Watchlist, provider_status: str) -> st
         "Watchlist",
         "---------------------------------------",
     ]
-    entries = watchlist.entries()
-    if not entries:
-        lines.append("No symbols selected.")
-    else:
-        for entry in entries:
-            if entry.quote is not None:
-                lines.append(
-                    f"{entry.quote.symbol}: ${entry.quote.last_price:.2f} "
-                    f"({entry.quote.daily_change:+.2f}, {entry.quote.daily_percent_change:+.2f}%) "
-                    f"updated {entry.quote.last_updated}"
-                )
-            elif entry.error is not None:
-                lines.append(f"{entry.symbol}: {entry.error}")
-            else:
-                lines.append(f"{entry.symbol}: Waiting for refresh.")
+    lines.extend(_render_watchlist_lines(watchlist))
     lines.extend(
         [
             "",
@@ -226,6 +213,27 @@ def render_market_intelligence(watchlist: Watchlist, provider_status: str) -> st
         ]
     )
     return "\n".join(lines)
+
+
+def _render_watchlist_lines(watchlist: Watchlist | None) -> list[str]:
+    """Render watchlist entries for display-only status screens."""
+    entries = [] if watchlist is None else watchlist.entries()
+    if not entries:
+        return ["No symbols selected."]
+
+    lines = []
+    for entry in entries:
+        if entry.quote is not None:
+            lines.append(
+                f"{entry.quote.symbol}: ${entry.quote.last_price:.2f} "
+                f"({entry.quote.daily_change:+.2f}, {entry.quote.daily_percent_change:+.2f}%) "
+                f"updated {entry.quote.last_updated}"
+            )
+        elif entry.error is not None:
+            lines.append(f"{entry.symbol}: {entry.error}")
+        else:
+            lines.append(f"{entry.symbol}: Waiting for refresh.")
+    return lines
 
 
 def _count_datasets(data_dir: Path) -> int:

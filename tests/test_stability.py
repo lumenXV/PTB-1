@@ -134,6 +134,14 @@ class CliStabilityTests(unittest.TestCase):
         self.assertIn("Market Intelligence", result.stdout)
         self.assertIn("Exiting QMR.CO.", result.stdout)
 
+    def test_operations_center_keeps_watchlist_for_session(self) -> None:
+        """A symbol added in Market Intelligence should appear on the main status screen."""
+        result = self._run_ptb1(stdin="5\n1\nAMD\n4\n6\n")
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Watching\n---------------------------------------\nAMD: Waiting for refresh.", result.stdout)
+        self.assertIn("Exiting QMR.CO.", result.stdout)
+
     def test_repeated_single_dataset_runs_are_identical(self) -> None:
         """The same dataset should produce the same report on repeated runs."""
         first_run = self._run_ptb1("--data", "datasets/sample_prices.csv")
