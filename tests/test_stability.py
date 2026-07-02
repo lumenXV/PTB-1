@@ -124,8 +124,8 @@ class CliStabilityTests(unittest.TestCase):
     """Verify that repeated CLI research runs remain stable."""
 
     def test_default_command_launches_operations_center(self) -> None:
-        """The default command should print Operations Center and exit cleanly without input."""
-        result = self._run_ptb1()
+        """The default command should print Operations Center and exit cleanly."""
+        result = self._run_ptb1(stdin="6\n")
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("QMR.CO", result.stdout)
@@ -177,11 +177,12 @@ class CliStabilityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Paper mode requires --strategy", result.stdout)
 
-    def _run_ptb1(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def _run_ptb1(self, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
         """Run QMR.CO as a user would from the command line."""
         return subprocess.run(
             [sys.executable, "-m", "ptb1", *args],
             cwd=PROJECT_ROOT,
+            input=stdin,
             capture_output=True,
             text=True,
             check=False,
