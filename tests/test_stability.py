@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ptb1.historian import load_price_history
 from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataRequest
-from ptb1.operations import OperationsStatus, render_menu, render_status
+from ptb1.operations import OperationsStatus, Watchlist, render_market_intelligence, render_menu, render_status
 from ptb1.paper import PaperSession
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
@@ -128,10 +128,11 @@ class CliStabilityTests(unittest.TestCase):
         result = self._run_ptb1()
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("PTB-1 Operations Center", result.stdout)
-        self.assertIn("Version v0.5.1", result.stdout)
+        self.assertIn("LumenX Research", result.stdout)
+        self.assertIn("Version v0.6", result.stdout)
         self.assertIn("Menu", result.stdout)
-        self.assertIn("Exiting PTB-1 Operations Center.", result.stdout)
+        self.assertIn("Market Intelligence", result.stdout)
+        self.assertIn("Exiting LumenX Research.", result.stdout)
 
     def test_repeated_single_dataset_runs_are_identical(self) -> None:
         """The same dataset should produce the same report on repeated runs."""
@@ -165,7 +166,7 @@ class CliStabilityTests(unittest.TestCase):
         result = self._run_ptb1("--paper", "--strategy", "RSI", "--data", "datasets/sample_prices.csv")
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("PTB-1 Milestone 4 Paper Trading Engine", result.stdout)
+        self.assertIn("LumenX Research Paper Trading Engine", result.stdout)
         self.assertIn("Strategy: RSI", result.stdout)
         self.assertIn("Mode: Paper trading with fake money only", result.stdout)
 
@@ -228,20 +229,22 @@ class OperationsCenterTests(unittest.TestCase):
         """Operations status should include platform and verification facts."""
         output = render_status(
             OperationsStatus(
-                version="v0.5.1",
-                stable_branch="stable/v0.5",
+                version="v0.6",
+                stable_branch="stable/v0.6",
                 runtime_seconds=0,
                 strategy_count=4,
                 dataset_count=3,
-                market_provider_status="HTTP Ready",
+                market_provider_status="Connected",
+                market_status="OPEN",
+                last_update="12:00:00",
                 mode="Idle",
             )
         )
 
         self.assertIn("Research Engine", output)
         self.assertIn("Paper Trading", output)
-        self.assertIn("Market Provider", output)
-        self.assertIn("Stability Harness", output)
+        self.assertIn("Market Intelligence", output)
+        self.assertIn("Watching", output)
         self.assertIn("Runtime", output)
 
     def test_render_menu_contains_expected_options(self) -> None:
@@ -252,7 +255,60 @@ class OperationsCenterTests(unittest.TestCase):
         self.assertIn("2. Paper Trading", output)
         self.assertIn("3. Learning Mode", output)
         self.assertIn("4. System Status", output)
-        self.assertIn("5. Exit", output)
+        self.assertIn("5. Market Intelligence", output)
+        self.assertIn("6. Exit", output)
+
+    def test_empty_watchlist_display(self) -> None:
+        """Market Intelligence should display an empty watchlist clearly."""
+        output = render_market_intelligence(Watchlist(), "Connected")
+
+        self.assertIn("No symbols selected.", output)
+
+    def test_watchlist_add_and_remove_symbol(self) -> None:
+        """Watchlist should add and remove normalized symbols."""
+        watchlist = Watchlist()
+
+        watchlist.add_symbol("ptb")
+        self.assertEqual([entry.symbol for entry in watchlist.entries()], ["PTB"])
+        self.assertTrue(watchlist.remove_symbol("PTB"))
+        self.assertEqual(watchlist.entries(), [])
+
+    def test_watchlist_refresh_updates_quote(self) -> None:
+        """Watchlist refresh should update watched prices on demand."""
+        watchlist = Watchlist()
+        watchlist.add_symbol("PTB")
+        provider = HTTPMarketProvider(fetcher=lambda request: _fake_market_response())
+
+        entries = watchlist.refresh(provider)
+
+        self.assertEqual(entries[0].quote.symbol, "PTB")
+        self.assertEqual(entries[0].quote.last_price, 102.0)
+        self.assertEqual(entries[0].quote.daily_change, 1.0)
+
+    def test_watchlist_refresh_handles_invalid_symbol(self) -> None:
+        """Watchlist refresh should keep invalid symbols display-only."""
+        watchlist = Watchlist()
+        watchlist.add_symbol("BAD")
+        provider = HTTPMarketProvider(
+            fetcher=lambda request: {"chart": {"result": None, "error": {"description": "Not Found"}}}
+        )
+
+        entries = watchlist.refresh(provider)
+
+        self.assertIsNone(entries[0].quote)
+        self.assertIn("Invalid market data symbol", entries[0].error)
+
+    def test_watchlist_refresh_handles_provider_failure(self) -> None:
+        """Watchlist refresh should display provider failures without raising."""
+        def failing_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise OSError("network unavailable")
+
+        watchlist = Watchlist()
+        watchlist.add_symbol("PTB")
+        entries = watchlist.refresh(HTTPMarketProvider(fetcher=failing_fetcher))
+
+        self.assertIsNone(entries[0].quote)
+        self.assertIn("Network failure", entries[0].error)
 
 
 def _fake_market_response() -> dict[str, object]:

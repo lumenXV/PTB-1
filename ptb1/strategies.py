@@ -1,4 +1,4 @@
-"""Built-in research strategies for PTB-1."""
+"""Built-in research strategies for LumenX Research."""
 
 from __future__ import annotations
 

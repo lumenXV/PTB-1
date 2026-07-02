@@ -1,4 +1,4 @@
-"""Learning Mode: read-only educational explanations for PTB-1."""
+"""Learning Mode: read-only educational explanations for LumenX Research."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Command line runner for PTB-1 research reports."""
+"""Command line runner for LumenX Research reports."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from ptb1.validator import (
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the command line parser."""
-    parser = argparse.ArgumentParser(description="Run PTB-1 research strategy reports.")
+    parser = argparse.ArgumentParser(description="Run LumenX Research strategy reports.")
     parser.add_argument(
         "--data",
         type=Path,
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> None:
         dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
         dataset_metrics = [_run_dataset(path, args.cash, market_data_provider) for path in dataset_paths]
 
-        print("PTB-1 Milestone 3 Dataset Engine")
+        print("LumenX Research Dataset Engine")
         print(f"Datasets loaded: {len(dataset_metrics)}")
         print(f"Starting cash: ${args.cash:,.2f}")
         print()
@@ -131,7 +131,7 @@ def _run_operations_center() -> None:
 def _run_default_research(market_data_provider: MarketDataProvider) -> None:
     """Launch the existing default research flow from Operations Center."""
     dataset = _run_dataset(Path("datasets/sample_prices.csv"), 10_000.0, market_data_provider)
-    print("PTB-1 Milestone 3 Dataset Engine")
+    print("LumenX Research Dataset Engine")
     print("Datasets loaded: 1")
     print("Starting cash: $10,000.00")
     print()
@@ -140,7 +140,7 @@ def _run_default_research(market_data_provider: MarketDataProvider) -> None:
 
 def _print_learning_mode() -> None:
     """Print read-only Learning Mode content."""
-    print("PTB-1 Learning Mode")
+    print("LumenX Research Learning Mode")
     print("Read-only educational explanations. No backtests or trades are run.")
     print()
     print("Strategy Education")
@@ -244,7 +244,7 @@ def _print_paper_session(result: PaperSessionResult, show_log: bool) -> None:
     filled_orders = [order for order in account.order_log if order.status == "FILLED"]
     rejected_orders = [order for order in account.order_log if order.status == "REJECTED"]
 
-    print("PTB-1 Milestone 4 Paper Trading Engine")
+    print("LumenX Research Paper Trading Engine")
     print("Mode: Paper trading with fake money only")
     print(f"Dataset: {result.dataset_name}")
     print(f"Strategy: {result.strategy_name}")

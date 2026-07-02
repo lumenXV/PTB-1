@@ -1,8 +1,18 @@
 # Changelog
 
-All notable PTB-1 changes should be recorded here in plain language.
+All notable LumenX Research changes should be recorded here in plain language.
 
 ## Unreleased
+
+## Milestone 6: LumenX Research Live Market Intelligence
+
+- Rebranded the user-facing interface and documentation from PTB-1 to LumenX Research.
+- Kept the internal Python package name `ptb1` for compatibility.
+- Added read-only Live Market Intelligence to the Operations Center.
+- Added an in-memory watchlist with add, remove, display, and manual refresh support.
+- Added read-only quote display with symbol, last price, daily change, daily percent change, and last updated time.
+- Added watchlist tests for empty state, add, remove, refresh, invalid symbols, and provider failures.
+- Preserved existing research, dataset, learning, stability, and paper trading commands.
 
 ## Milestone 5.1: Operations Center
 

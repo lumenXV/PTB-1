@@ -1,6 +1,8 @@
 # Roadmap
 
-PTB-1 is built in milestones. Each milestone must leave the project runnable.
+LumenX Research is built in milestones. Each milestone must leave the project runnable.
+
+The Python package remains `ptb1` for compatibility.
 
 ## Milestone 1: Basic Backtester
 
@@ -111,7 +113,7 @@ Out of scope:
 
 Status: complete.
 
-Goal: prepare PTB-1 for future market data sources without changing current behavior.
+Goal: prepare LumenX Research for future market data sources without changing current behavior.
 
 Implemented:
 
@@ -136,7 +138,7 @@ Out of scope:
 
 Status: complete.
 
-Goal: prepare PTB-1 to retrieve live market data internally without changing the user workflow.
+Goal: prepare LumenX Research to retrieve live market data internally without changing the user workflow.
 
 Implemented:
 
@@ -191,26 +193,58 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
-## Milestone 6: Portfolio Engine
+## Milestone 6: LumenX Research Live Market Intelligence
+
+Status: complete.
+
+Goal: rebrand PTB-1 to LumenX Research in the user experience and add read-only live market awareness.
+
+Implemented:
+
+- LumenX Research user-facing branding.
+- Operations Center Live Market Intelligence section.
+- In-memory watchlist.
+- Add symbol.
+- Remove symbol.
+- Display watched symbols.
+- Manual refresh of watched prices.
+- Read-only quote display with last price, daily change, daily percent change, and last updated time.
+- Provider failure display without raising into the Operations Center.
+
+Out of scope:
+
+- Package rename.
+- Persistent watchlist storage.
+- Background polling.
+- Trading signals from live prices.
+- Live trading.
+- Broker connections.
+- Robinhood.
+- Order placement.
+- AI.
+- Machine learning.
+- Optimization.
+
+## Milestone 7: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
 
-## Milestone 7: Robinhood MCP Integration
+## Milestone 8: Robinhood MCP Integration
 
 Integrate Robinhood through MCP only after paper trading proves the system is ready.
 
-## Milestone 8: AI Researcher
+## Milestone 9: AI Researcher
 
 Use AI to assist research only after strategy validation workflows are reliable.
 
-## Milestone 9: Learning Engine
+## Milestone 10: Learning Engine
 
 Learn from validated results without bypassing explainability or verification.
 
-## Milestone 10: Market Memory
+## Milestone 11: Market Memory
 
 Remember strategies, tests, failures, and compressed historical research summaries.
 
-## Milestone 11: Mobile Dashboard
+## Milestone 12: Mobile Dashboard
 
 Provide a focused dashboard for reviewing research state and results.

@@ -1,4 +1,4 @@
-"""Market data provider interfaces for PTB-1."""
+"""Market data provider interfaces for LumenX Research."""
 
 from __future__ import annotations
 
@@ -24,6 +24,17 @@ class MarketDataRequest:
     symbol: str
     period: str
     interval: str
+
+
+@dataclass(frozen=True)
+class MarketQuote:
+    """Read-only live market quote derived from provider price bars."""
+
+    symbol: str
+    last_price: float
+    daily_change: float
+    daily_percent_change: float
+    last_updated: str
 
 
 class MarketDataProvider(Protocol, Generic[SourceT]):
@@ -70,6 +81,28 @@ class HTTPMarketProvider:
             create_price_bar(row=row, source=f"{self.name} market data for {request.symbol}", line_number=index)
             for index, row in enumerate(rows, start=1)
         ]
+
+    def quote(self, request: MarketDataRequest) -> MarketQuote:
+        """Return a read-only market quote from recent price bars."""
+        bars = self.load(request)
+        if not bars:
+            raise ValueError(f"Empty market data response for {request.symbol}.")
+
+        latest_bar = bars[-1]
+        previous_close = bars[-2].close if len(bars) > 1 else latest_bar.close
+        daily_change = latest_bar.close - previous_close
+        daily_percent_change = (daily_change / previous_close) * 100 if previous_close else 0.0
+        return MarketQuote(
+            symbol=latest_bar.symbol,
+            last_price=latest_bar.close,
+            daily_change=daily_change,
+            daily_percent_change=daily_percent_change,
+            last_updated=datetime.now().strftime("%H:%M:%S"),
+        )
+
+    def connection_status(self) -> str:
+        """Return display-only provider readiness."""
+        return "Connected"
 
     def _fetch(self, request: MarketDataRequest) -> dict[str, Any]:
         """Fetch provider data and normalize fetch failures."""

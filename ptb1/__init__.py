@@ -1,4 +1,4 @@
-"""PTB-1 research platform package."""
+"""LumenX Research platform package."""
 
 __all__ = ["__version__"]
 

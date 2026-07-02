@@ -1,15 +1,18 @@
-# PTB-1
+# LumenX Research
 
-PTB-1 is an AI trading research platform. It is not a live trading bot.
+LumenX Research is an AI trading research platform. It is not a live trading bot.
 
-Milestone 4 adds a Paper Trading Engine. PTB-1 can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
+The Python package remains `ptb1` for compatibility.
+
+Milestone 4 adds a Paper Trading Engine. LumenX Research can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
 Milestone 4.5 adds an internal market data provider interface with CSV as the only current provider.
 Milestone 5 adds an internal HTTP market data foundation without adding public market-data commands or live trading.
 Milestone 5.1 adds a display-only Operations Center as the default platform entry point.
+Milestone 6 rebrands the user experience to LumenX Research and adds read-only Live Market Intelligence with an in-memory watchlist.
 
-Learning Mode is a read-only companion feature. It teaches what PTB-1 is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
+Learning Mode is a read-only companion feature. It teaches what LumenX Research is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
-PTB-1 does not include Robinhood, AI, machine learning, live trading, optimization, or automation.
+LumenX Research does not include Robinhood, AI, machine learning, live trading, optimization, or automation.
 
 ## Project Brain
 
@@ -19,7 +22,7 @@ PTB-1 does not include Robinhood, AI, machine learning, live trading, optimizati
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Run PTB-1
+## Run LumenX Research
 
 Launch the Operations Center:
 
@@ -98,7 +101,7 @@ flowchart LR
 | Employee | Module | One responsibility |
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
-| Operations Center | `ptb1/operations.py` | Display platform status and menu options. |
+| Operations Center | `ptb1/operations.py` | Display platform status, menu options, and read-only watchlist state. |
 | Market Data | `ptb1/market_data.py` | Provide internal CSV and HTTP market data providers. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
@@ -121,9 +124,10 @@ No module should do another employee's job.
 6. Market data provider interface. Done in Milestone 4.5.
 7. Live market data foundation. Done in Milestone 5.
 8. Operations Center. Done in Milestone 5.1.
-9. Portfolio tracking.
-10. Robinhood MCP.
-11. AI researcher.
-12. Learning engine.
-13. Market Memory.
-14. Mobile Dashboard.
+9. Live Market Intelligence. Done in Milestone 6.
+10. Portfolio tracking.
+11. Robinhood MCP.
+12. AI researcher.
+13. Learning engine.
+14. Market Memory.
+15. Mobile Dashboard.

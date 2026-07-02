@@ -1,10 +1,12 @@
 # Architecture
 
-PTB-1 is organized around small modules with one responsibility each.
+LumenX Research is organized around small modules with one responsibility each.
+
+The Python package remains `ptb1` for compatibility.
 
 Every feature proposal must answer:
 
-Does this improve PTB-1's ability to discover or validate trading strategies?
+Does this improve LumenX Research's ability to discover or validate trading strategies?
 
 If the answer is no, do not implement it.
 
@@ -69,6 +71,7 @@ Responsibilities:
 - Define the internal market data provider interface.
 - Provide the current CSV provider.
 - Provide the internal HTTP market provider foundation.
+- Provide read-only quote data.
 - Delegate CSV loading to Historian.
 - Convert HTTP provider responses into Historian-compatible rows.
 - Hide provider-specific response formats.
@@ -98,6 +101,8 @@ Responsibilities:
 - Display market provider status.
 - Display verification summary.
 - Render the menu.
+- Maintain the in-memory read-only watchlist.
+- Display live market intelligence.
 
 Must not:
 
@@ -109,6 +114,9 @@ Must not:
 - Own validation.
 - Own risk management.
 - Own market data retrieval.
+- Calculate trading signals from live prices.
+- Persist watchlist data.
+- Poll in the background.
 
 ### Researcher
 
@@ -268,6 +276,7 @@ Responsibilities:
 - Display cross-dataset summaries.
 - Display Learning Mode content.
 - Display paper trading summaries, logs, and diagnostics.
+- Display LumenX Research branding.
 
 Must not:
 
