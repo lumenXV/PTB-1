@@ -108,6 +108,10 @@ class HTTPMarketProvider:
         """Fetch provider data and normalize fetch failures."""
         try:
             return self.fetcher(request)
+        except HTTPError as exc:
+            if exc.code == 429:
+                raise ValueError(f"Rate limited loading market data for {request.symbol}.") from exc
+            raise ValueError(f"Market data provider returned HTTP {exc.code} for {request.symbol}.") from exc
         except TimeoutError as exc:
             raise ValueError(f"Timed out loading market data for {request.symbol}.") from exc
         except OSError as exc:
@@ -134,6 +138,8 @@ def _fetch_chart_response(request: MarketDataRequest) -> dict[str, Any]:
     except HTTPError as exc:
         if exc.code == 404:
             raise ValueError(f"Invalid market data symbol: {request.symbol}.") from exc
+        if exc.code == 429:
+            raise ValueError(f"Rate limited loading market data for {request.symbol}.") from exc
         raise ValueError(f"Market data provider returned HTTP {exc.code} for {request.symbol}.") from exc
     except socket.timeout as exc:
         raise TimeoutError from exc

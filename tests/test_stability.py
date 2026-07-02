@@ -7,6 +7,7 @@ import sys
 import unittest
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
@@ -121,6 +122,16 @@ class MarketDataProviderTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Timed out"):
             provider.load(MarketDataRequest(symbol="PTB", period="5d", interval="1d"))
+
+    def test_http_provider_reports_rate_limit(self) -> None:
+        """HTTPMarketProvider should normalize HTTP 429 rate limits."""
+        def rate_limited_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise HTTPError("https://example.test", 429, "Too Many Requests", {}, None)
+
+        provider = HTTPMarketProvider(fetcher=rate_limited_fetcher)
+
+        with self.assertRaisesRegex(ValueError, "Rate limited"):
+            provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
 
 
 class CliStabilityTests(unittest.TestCase):
@@ -307,6 +318,24 @@ class LivePaperSessionTests(unittest.TestCase):
 
         self.assertEqual(len(result.account.order_log), 0)
         self.assertIn("Provider failure", result.decisions[0].order_result)
+
+    def test_live_paper_rate_limit_pauses_without_trade(self) -> None:
+        """Live paper should pause and place no fake order when provider rate limits."""
+        result = LivePaperSession(_RateLimitedLiveProvider(), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].risk_decision, "PAUSED")
+        self.assertIn("Rate limited", result.decisions[0].order_result)
 
     def test_live_paper_short_history_holds_with_current_strategy(self) -> None:
         """Live paper should hold when the selected strategy has too little history."""
@@ -500,6 +529,14 @@ class _FailingLiveProvider:
     def load(self, request: MarketDataRequest) -> list[PriceBar]:
         """Raise a provider error."""
         raise ValueError("Network failure loading market data for AMD.")
+
+
+class _RateLimitedLiveProvider:
+    """Fake provider that simulates a provider rate limit."""
+
+    def load(self, request: MarketDataRequest) -> list[PriceBar]:
+        """Raise a provider rate-limit error."""
+        raise ValueError("Rate limited loading market data for AMD.")
 
 
 def _fake_price_bars(count: int = 20) -> list[PriceBar]:

@@ -132,15 +132,16 @@ class LivePaperSession:
         try:
             history = self.provider.load(MarketDataRequest(symbol=symbol, period="3mo", interval="1d"))
         except ValueError as exc:
+            risk_decision, order_result, explanation = _provider_error_decision(exc)
             return _decision(
                 timestamp=timestamp,
                 symbol=symbol,
                 last_price=None,
                 signal=Signal.HOLD,
-                risk_decision="SKIPPED",
-                order_result=f"Provider failure: {exc}",
+                risk_decision=risk_decision,
+                order_result=order_result,
                 account=account,
-                explanation="No fake trade was placed because market data was unavailable.",
+                explanation=explanation,
             )
 
         if not history:
@@ -410,6 +411,22 @@ def _paper_trade_explanation(strategy_name: str, signal: Signal, decision: str, 
             f"Risk Manager Decision: {decision.upper()}",
             f"Risk Reason: {risk_reason}",
         ]
+    )
+
+
+def _provider_error_decision(exc: ValueError) -> tuple[str, str, str]:
+    """Convert provider errors into no-trade live paper decisions."""
+    message = str(exc)
+    if "Rate limited" in message:
+        return (
+            "PAUSED",
+            f"Rate limited: {message} No fake trade placed.",
+            "Market data provider rate limit reached. Live paper paused this decision and placed no fake trade.",
+        )
+    return (
+        "SKIPPED",
+        f"Provider failure: {message}",
+        "No fake trade was placed because market data was unavailable.",
     )
 
 
