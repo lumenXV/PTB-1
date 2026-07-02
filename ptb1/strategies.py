@@ -1,4 +1,4 @@
-"""Built-in research strategies for LumenX Research."""
+"""Built-in research strategies for QMR.CO."""
 
 from __future__ import annotations
 

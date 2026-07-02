@@ -1,4 +1,4 @@
-"""Operations Center: display-only LumenX Research platform entry point."""
+"""Operations Center: display-only QMR.CO platform entry point."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ STABLE_BRANCH = "stable/v0.6"
 
 @dataclass(frozen=True)
 class OperationsStatus:
-    """Display facts for the LumenX Research Operations Center."""
+    """Display facts for the QMR.CO Operations Center."""
 
     version: str
     stable_branch: str
@@ -31,7 +31,7 @@ class OperationsStatus:
 
 @dataclass(frozen=True)
 class OperationsActions:
-    """Callbacks that launch existing LumenX Research functionality."""
+    """Callbacks that launch existing QMR.CO functionality."""
 
     research: Callable[[], None]
     paper: Callable[[], None]
@@ -108,7 +108,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
         try:
             choice = input("Select an option: ").strip()
         except EOFError:
-            print("Exiting LumenX Research.")
+            print("Exiting QMR.CO.")
             return
 
         if choice == "1":
@@ -122,7 +122,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
         elif choice == "5":
             _run_market_intelligence(watchlist, market_provider)
         elif choice == "6":
-            print("Exiting LumenX Research.")
+            print("Exiting QMR.CO.")
             return
         else:
             print("Invalid selection.")
@@ -134,7 +134,7 @@ def render_status(status: OperationsStatus) -> str:
     return "\n".join(
         [
             "=" * 56,
-            "                 LumenX Research",
+            "                 QMR.CO",
             f"                  Version {status.version}",
             "=" * 56,
             "",

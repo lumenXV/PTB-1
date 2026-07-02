@@ -1,4 +1,4 @@
-"""Stability checks for PTB-1 research runs and dataset loading."""
+"""Stability checks for QMR.CO research runs and dataset loading."""
 
 from __future__ import annotations
 
@@ -128,11 +128,11 @@ class CliStabilityTests(unittest.TestCase):
         result = self._run_ptb1()
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("LumenX Research", result.stdout)
+        self.assertIn("QMR.CO", result.stdout)
         self.assertIn("Version v0.6", result.stdout)
         self.assertIn("Menu", result.stdout)
         self.assertIn("Market Intelligence", result.stdout)
-        self.assertIn("Exiting LumenX Research.", result.stdout)
+        self.assertIn("Exiting QMR.CO.", result.stdout)
 
     def test_repeated_single_dataset_runs_are_identical(self) -> None:
         """The same dataset should produce the same report on repeated runs."""
@@ -166,7 +166,7 @@ class CliStabilityTests(unittest.TestCase):
         result = self._run_ptb1("--paper", "--strategy", "RSI", "--data", "datasets/sample_prices.csv")
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("LumenX Research Paper Trading Engine", result.stdout)
+        self.assertIn("QMR.CO Paper Trading Engine", result.stdout)
         self.assertIn("Strategy: RSI", result.stdout)
         self.assertIn("Mode: Paper trading with fake money only", result.stdout)
 
@@ -178,7 +178,7 @@ class CliStabilityTests(unittest.TestCase):
         self.assertIn("Paper mode requires --strategy", result.stdout)
 
     def _run_ptb1(self, *args: str) -> subprocess.CompletedProcess[str]:
-        """Run PTB-1 as a user would from the command line."""
+        """Run QMR.CO as a user would from the command line."""
         return subprocess.run(
             [sys.executable, "-m", "ptb1", *args],
             cwd=PROJECT_ROOT,

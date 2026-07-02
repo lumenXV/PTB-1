@@ -1,4 +1,4 @@
-"""Run LumenX Research from ``python -m ptb1``."""
+"""Run QMR.CO from ``python -m ptb1``."""
 
 from ptb1.cli import main
 

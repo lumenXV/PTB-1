@@ -1,12 +1,12 @@
 # Architecture
 
-LumenX Research is organized around small modules with one responsibility each.
+QMR.CO is organized around small modules with one responsibility each.
 
 The Python package remains `ptb1` for compatibility.
 
 Every feature proposal must answer:
 
-Does this improve LumenX Research's ability to discover or validate trading strategies?
+Does this improve QMR.CO's ability to discover or validate trading strategies?
 
 If the answer is no, do not implement it.
 
@@ -276,7 +276,7 @@ Responsibilities:
 - Display cross-dataset summaries.
 - Display Learning Mode content.
 - Display paper trading summaries, logs, and diagnostics.
-- Display LumenX Research branding.
+- Display QMR.CO branding.
 
 Must not:
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-LumenX Research is built in milestones. Each milestone must leave the project runnable.
+QMR.CO is built in milestones. Each milestone must leave the project runnable.
 
 The Python package remains `ptb1` for compatibility.
 
@@ -113,7 +113,7 @@ Out of scope:
 
 Status: complete.
 
-Goal: prepare LumenX Research for future market data sources without changing current behavior.
+Goal: prepare QMR.CO for future market data sources without changing current behavior.
 
 Implemented:
 
@@ -138,7 +138,7 @@ Out of scope:
 
 Status: complete.
 
-Goal: prepare LumenX Research to retrieve live market data internally without changing the user workflow.
+Goal: prepare QMR.CO to retrieve live market data internally without changing the user workflow.
 
 Implemented:
 
@@ -193,15 +193,15 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
-## Milestone 6: LumenX Research Live Market Intelligence
+## Milestone 6: QMR.CO Live Market Intelligence
 
 Status: complete.
 
-Goal: rebrand PTB-1 to LumenX Research in the user experience and add read-only live market awareness.
+Goal: rebrand PTB-1 to QMR.CO in the user experience and add read-only live market awareness.
 
 Implemented:
 
-- LumenX Research user-facing branding.
+- QMR.CO user-facing branding.
 - Operations Center Live Market Intelligence section.
 - In-memory watchlist.
 - Add symbol.

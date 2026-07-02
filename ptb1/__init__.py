@@ -1,4 +1,4 @@
-"""LumenX Research platform package."""
+"""QMR.CO platform package."""
 
 __all__ = ["__version__"]
 

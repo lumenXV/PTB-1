@@ -1,18 +1,18 @@
-# LumenX Research
+# QMR.CO
 
-LumenX Research is an AI trading research platform. It is not a live trading bot.
+QMR.CO is an AI trading research platform. It is not a live trading bot.
 
 The Python package remains `ptb1` for compatibility.
 
-Milestone 4 adds a Paper Trading Engine. LumenX Research can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
+Milestone 4 adds a Paper Trading Engine. QMR.CO can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
 Milestone 4.5 adds an internal market data provider interface with CSV as the only current provider.
 Milestone 5 adds an internal HTTP market data foundation without adding public market-data commands or live trading.
 Milestone 5.1 adds a display-only Operations Center as the default platform entry point.
-Milestone 6 rebrands the user experience to LumenX Research and adds read-only Live Market Intelligence with an in-memory watchlist.
+Milestone 6 rebrands the user experience to QMR.CO and adds read-only Live Market Intelligence with an in-memory watchlist.
 
-Learning Mode is a read-only companion feature. It teaches what LumenX Research is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
+Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
-LumenX Research does not include Robinhood, AI, machine learning, live trading, optimization, or automation.
+QMR.CO does not include Robinhood, AI, machine learning, live trading, optimization, or automation.
 
 ## Project Brain
 
@@ -22,7 +22,7 @@ LumenX Research does not include Robinhood, AI, machine learning, live trading, 
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Run LumenX Research
+## Run QMR.CO
 
 Launch the Operations Center:
 

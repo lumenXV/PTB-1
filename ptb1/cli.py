@@ -1,4 +1,4 @@
-"""Command line runner for LumenX Research reports."""
+"""Command line runner for QMR.CO reports."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from ptb1.validator import (
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the command line parser."""
-    parser = argparse.ArgumentParser(description="Run LumenX Research strategy reports.")
+    parser = argparse.ArgumentParser(description="Run QMR.CO strategy reports.")
     parser.add_argument(
         "--data",
         type=Path,
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> None:
         dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
         dataset_metrics = [_run_dataset(path, args.cash, market_data_provider) for path in dataset_paths]
 
-        print("LumenX Research Dataset Engine")
+        print("QMR.CO Dataset Engine")
         print(f"Datasets loaded: {len(dataset_metrics)}")
         print(f"Starting cash: ${args.cash:,.2f}")
         print()
@@ -131,7 +131,7 @@ def _run_operations_center() -> None:
 def _run_default_research(market_data_provider: MarketDataProvider) -> None:
     """Launch the existing default research flow from Operations Center."""
     dataset = _run_dataset(Path("datasets/sample_prices.csv"), 10_000.0, market_data_provider)
-    print("LumenX Research Dataset Engine")
+    print("QMR.CO Dataset Engine")
     print("Datasets loaded: 1")
     print("Starting cash: $10,000.00")
     print()
@@ -140,7 +140,7 @@ def _run_default_research(market_data_provider: MarketDataProvider) -> None:
 
 def _print_learning_mode() -> None:
     """Print read-only Learning Mode content."""
-    print("LumenX Research Learning Mode")
+    print("QMR.CO Learning Mode")
     print("Read-only educational explanations. No backtests or trades are run.")
     print()
     print("Strategy Education")
@@ -244,7 +244,7 @@ def _print_paper_session(result: PaperSessionResult, show_log: bool) -> None:
     filled_orders = [order for order in account.order_log if order.status == "FILLED"]
     rejected_orders = [order for order in account.order_log if order.status == "REJECTED"]
 
-    print("LumenX Research Paper Trading Engine")
+    print("QMR.CO Paper Trading Engine")
     print("Mode: Paper trading with fake money only")
     print(f"Dataset: {result.dataset_name}")
     print(f"Strategy: {result.strategy_name}")

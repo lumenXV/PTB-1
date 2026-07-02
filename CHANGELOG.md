@@ -1,12 +1,12 @@
 # Changelog
 
-All notable LumenX Research changes should be recorded here in plain language.
+All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
-## Milestone 6: LumenX Research Live Market Intelligence
+## Milestone 6: QMR.CO Live Market Intelligence
 
-- Rebranded the user-facing interface and documentation from PTB-1 to LumenX Research.
+- Rebranded the user-facing interface and documentation from PTB-1 to QMR.CO.
 - Kept the internal Python package name `ptb1` for compatibility.
 - Added read-only Live Market Intelligence to the Operations Center.
 - Added an in-memory watchlist with add, remove, display, and manual refresh support.

@@ -1,4 +1,4 @@
-"""Market data provider interfaces for LumenX Research."""
+"""Market data provider interfaces for QMR.CO."""
 
 from __future__ import annotations
 
