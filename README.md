@@ -9,6 +9,7 @@ Milestone 4.5 adds an internal market data provider interface with CSV as the on
 Milestone 5 adds an internal HTTP market data foundation without adding public market-data commands or live trading.
 Milestone 5.1 adds a display-only Operations Center as the default platform entry point.
 Milestone 6 rebrands the user experience to QMR.CO and adds read-only Live Market Intelligence with an in-memory watchlist.
+Milestone 6.5 adds fake-money live paper trading and a simple PowerShell launcher.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -28,6 +29,12 @@ Launch the Operations Center:
 
 ```powershell
 python -m ptb1
+```
+
+Launch the Operations Center with the PowerShell shortcut:
+
+```powershell
+.\qmr.ps1
 ```
 
 Run one dataset:
@@ -52,6 +59,12 @@ Run one fake-money paper session:
 
 ```powershell
 python -m ptb1 --paper --strategy RSI --data datasets/sample_prices.csv
+```
+
+Run a limited fake-money live paper session:
+
+```powershell
+python -m ptb1 --live-paper --symbol AMD --strategy RSI --cash 10000 --interval 1 --max-iterations 3
 ```
 
 Print the fake paper order and trade logs:
@@ -88,7 +101,10 @@ flowchart LR
     CLI --> Learning
     CLI --> Trader["Trader\nexecution facts only"]
     CLI --> Paper["Paper Trader\nfake-money execution only"]
+    CLI --> LivePaper["Live Paper Trader\nfake-money market loop only"]
     Paper --> RiskManager
+    LivePaper --> RiskManager
+    LivePaper --> MarketData
     Paper --> Learning
     Trader --> RiskManager["Risk Manager\napprove position changes"]
     Trader --> ValidatorInput["Backtest Results"]
@@ -108,6 +124,7 @@ flowchart LR
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
 | Trader | `ptb1/trader.py` | Run backtests and record execution facts. |
 | Paper Trader | `ptb1/paper.py` | Run fake-money paper sessions and record paper account facts. |
+| Live Paper Trader | `ptb1/live_paper.py` | Run fake-money live paper loops through the provider layer. |
 | Risk Manager | `ptb1/risk_manager.py` | Approve or reject position changes. |
 | Validator | `ptb1/validator.py` | Calculate metrics, comparison winners, notes, and cross-dataset summaries. |
 | CLI Runner | `ptb1/cli.py` | Orchestrate runs and display reports or Learning Mode content. |
@@ -125,9 +142,10 @@ No module should do another employee's job.
 7. Live market data foundation. Done in Milestone 5.
 8. Operations Center. Done in Milestone 5.1.
 9. Live Market Intelligence. Done in Milestone 6.
-10. Portfolio tracking.
-11. Robinhood MCP.
-12. AI researcher.
-13. Learning engine.
-14. Market Memory.
-15. Mobile Dashboard.
+10. Live paper trading. Done in Milestone 6.5.
+11. Portfolio tracking.
+12. Robinhood MCP.
+13. AI researcher.
+14. Learning engine.
+15. Market Memory.
+16. Mobile Dashboard.

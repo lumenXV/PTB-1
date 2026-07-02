@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 6.5: Live Paper Trading + Easier Startup
+
+- Added `ptb1/live_paper.py` for fake-money live paper sessions.
+- Added `--live-paper`, repeatable `--symbol`, `--interval`, and `--max-iterations` CLI options.
+- Added live paper decision output with signal, risk decision, fake order result, account status, and `PAPER TRADE ONLY` notes.
+- Added clean Ctrl+C summary handling for live paper sessions.
+- Added deterministic live paper unit tests with fake provider data.
+- Added `qmr.ps1` as a PowerShell launcher for `python -m ptb1`.
+- Preserved existing research, dataset, learning, Operations Center, and paper trading behavior.
+
 ## Milestone 6: QMR.CO Live Market Intelligence
 
 - Rebranded the user-facing interface and documentation from PTB-1 to QMR.CO.

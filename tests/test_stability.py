@@ -5,12 +5,15 @@ from __future__ import annotations
 import subprocess
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 
-from ptb1.historian import load_price_history
+from ptb1.historian import PriceBar, load_price_history
+from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataRequest
 from ptb1.operations import OperationsStatus, Watchlist, render_market_intelligence, render_menu, render_status
 from ptb1.paper import PaperSession
+from ptb1.researcher import Signal
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
 
@@ -231,6 +234,98 @@ class PaperSessionTests(unittest.TestCase):
         self.assertGreater(len(result.account.order_log), len(result.account.trade_log))
 
 
+class LivePaperSessionTests(unittest.TestCase):
+    """Verify fake-money live paper sessions stay bounded and deterministic."""
+
+    def test_live_paper_limited_loop_can_buy(self) -> None:
+        """Live paper should place a fake buy when strategy and risk allow it."""
+        output: list[str] = []
+        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=output.append,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 1)
+        self.assertEqual(result.account.order_log[0].status, "FILLED")
+        self.assertIn("PAPER TRADE ONLY", "\n".join(output))
+
+    def test_live_paper_can_sell_open_position(self) -> None:
+        """Live paper should sell an existing fake position when strategy and risk allow it."""
+        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_SequenceSignalStrategy([Signal.BUY, Signal.SELL]),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=2,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.trade_log), 1)
+        self.assertEqual(len(result.account.positions), 0)
+        self.assertEqual(result.account.order_log[-1].side, "SELL")
+
+    def test_live_paper_hold_places_no_order(self) -> None:
+        """Live paper should not place fake orders for HOLD signals."""
+        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.HOLD),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].signal, Signal.HOLD)
+
+    def test_live_paper_provider_failure_does_not_trade(self) -> None:
+        """Live paper should skip trading when provider data fails."""
+        result = LivePaperSession(_FailingLiveProvider(), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertIn("Provider failure", result.decisions[0].order_result)
+
+    def test_live_paper_short_history_holds_with_current_strategy(self) -> None:
+        """Live paper should hold when the selected strategy has too little history."""
+        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars(count=2)), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=RsiStrategy(),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].signal, Signal.HOLD)
+
+
 class OperationsCenterTests(unittest.TestCase):
     """Verify Operations Center display rendering."""
 
@@ -343,3 +438,81 @@ def _fake_market_response() -> dict[str, object]:
             ],
         }
     }
+
+
+class _FixedSignalStrategy:
+    """Small test strategy that always emits one signal."""
+
+    name = "Fixed Signal"
+
+    def __init__(self, signal: Signal) -> None:
+        """Create a fixed-signal test strategy."""
+        self.signal = signal
+
+    def generate_signal(self, history: list[PriceBar], position_size: int) -> Signal:
+        """Return the configured test signal."""
+        return self.signal
+
+
+class _SequenceSignalStrategy:
+    """Small test strategy that emits signals in order."""
+
+    name = "Sequence Signal"
+
+    def __init__(self, signals: list[Signal]) -> None:
+        """Create a sequence-signal test strategy."""
+        self.signals = signals
+        self.index = 0
+
+    def generate_signal(self, history: list[PriceBar], position_size: int) -> Signal:
+        """Return the next configured test signal."""
+        signal = self.signals[min(self.index, len(self.signals) - 1)]
+        self.index += 1
+        return signal
+
+
+class _FakeLiveProvider:
+    """Fake provider for deterministic live paper tests."""
+
+    def __init__(self, bars: list[PriceBar]) -> None:
+        """Create the provider with fixed bars."""
+        self.bars = bars
+
+    def load(self, request: MarketDataRequest) -> list[PriceBar]:
+        """Return fixed bars for the requested symbol."""
+        return [
+            PriceBar(
+                symbol=request.symbol,
+                date=bar.date,
+                open=bar.open,
+                high=bar.high,
+                low=bar.low,
+                close=bar.close,
+                volume=bar.volume,
+            )
+            for bar in self.bars
+        ]
+
+
+class _FailingLiveProvider:
+    """Fake provider that simulates market data failure."""
+
+    def load(self, request: MarketDataRequest) -> list[PriceBar]:
+        """Raise a provider error."""
+        raise ValueError("Network failure loading market data for AMD.")
+
+
+def _fake_price_bars(count: int = 20) -> list[PriceBar]:
+    """Build simple fake price bars for live paper tests."""
+    return [
+        PriceBar(
+            symbol="AMD",
+            date=date(2024, 1, index + 1),
+            open=100.0 + index,
+            high=101.0 + index,
+            low=99.0 + index,
+            close=100.0 + index,
+            volume=1000 + index,
+        )
+        for index in range(count)
+    ]

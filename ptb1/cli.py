@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
+from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import CSVProvider, MarketDataProvider
+from ptb1.market_data import HTTPMarketProvider
 from ptb1.operations import OperationsActions, run_operations_center
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
@@ -57,6 +59,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run one strategy in fake-money paper mode.",
     )
     parser.add_argument(
+        "--live-paper",
+        action="store_true",
+        help="Run a fake-money live paper loop with market data.",
+    )
+    parser.add_argument(
+        "--symbol",
+        action="append",
+        default=[],
+        help="Market symbol for live paper mode. Repeat for multiple symbols.",
+    )
+    parser.add_argument(
         "--strategy",
         help="Strategy name for paper mode. Hyphens and spaces are treated the same.",
     )
@@ -70,6 +83,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=10_000.0,
         help="Starting cash for the research backtest.",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=60.0,
+        help="Seconds between live paper iterations.",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        help="Optional live paper iteration limit for testing.",
     )
     return parser
 
@@ -87,6 +111,9 @@ def main(argv: list[str] | None = None) -> None:
             _print_learning_mode()
             return
         market_data_provider = CSVProvider()
+        if args.live_paper:
+            _run_live_paper_mode(args.symbol, args.strategy, args.cash, args.interval, args.max_iterations)
+            return
         if args.paper:
             _run_paper_mode(args.data, args.strategy, args.cash, args.paper_log, market_data_provider)
             return
@@ -215,6 +242,29 @@ def _run_paper_mode(
         dataset_name=path.stem,
     )
     _print_paper_session(result, show_log)
+
+
+def _run_live_paper_mode(
+    symbols: list[str],
+    strategy_name: str | None,
+    starting_cash: float,
+    interval_seconds: float,
+    max_iterations: int | None,
+) -> None:
+    """Run one fake-money live paper session."""
+    if strategy_name is None:
+        names = ", ".join(strategy.name for strategy in get_available_strategies())
+        raise ValueError(f"Live paper mode requires --strategy. Available strategies: {names}.")
+    strategy = _find_strategy(strategy_name)
+    LivePaperSession(provider=HTTPMarketProvider(), risk_manager=RiskManager()).run(
+        LivePaperConfig(
+            symbols=[symbol.upper() for symbol in symbols],
+            strategy=strategy,
+            starting_cash=starting_cash,
+            interval_seconds=interval_seconds,
+            max_iterations=max_iterations,
+        )
+    )
 
 
 def _find_strategy(strategy_name: str | None) -> Strategy:

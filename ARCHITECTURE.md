@@ -24,8 +24,11 @@ flowchart LR
     CLI --> Learning
     CLI --> Trader["Trader"]
     CLI --> Paper["Paper Trader"]
+    CLI --> LivePaper["Live Paper Trader"]
     Trader --> RiskManager["Risk Manager"]
     Paper --> RiskManager
+    LivePaper --> RiskManager
+    LivePaper --> MarketData
     Paper --> Learning
     Trader --> Result["Backtest Results"]
     CLI --> Validator["Validator"]
@@ -210,6 +213,33 @@ Must not:
 - Create strategies.
 - Change strategy signals.
 - Change risk rules.
+
+### Live Paper Trader
+
+Module: `ptb1/live_paper.py`
+
+Responsibilities:
+
+- Run fake-money live paper loops.
+- Request recent bars through the market data provider layer.
+- Run one selected strategy against recent bars.
+- Ask Risk Manager before fake order fills.
+- Track fake account state for the running live paper session.
+- Log every live paper decision.
+- Display final session summary on completion or Ctrl+C.
+
+Must not:
+
+- Place real trades.
+- Connect to a broker.
+- Connect to Robinhood.
+- Use margin.
+- Short sell.
+- Trade options.
+- Persist session state.
+- Run in the background.
+- Change strategy signals.
+- Calculate Validator research metrics.
 
 ### Validator
 

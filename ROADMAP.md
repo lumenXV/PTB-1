@@ -225,6 +225,38 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Milestone 6.5: Live Paper Trading + Easier Startup
+
+Status: complete.
+
+Goal: run a fake-money live paper loop through the provider layer and make local startup easier.
+
+Implemented:
+
+- `ptb1/live_paper.py` fake-money live paper coordinator.
+- `--live-paper` CLI mode.
+- Repeatable `--symbol` support.
+- `--interval` loop timing.
+- `--max-iterations` bounded test mode.
+- Risk Manager approval before fake live paper order fills.
+- Decision logging with clear `PAPER TRADE ONLY` output.
+- Clean Ctrl+C summary handling.
+- `qmr.ps1` PowerShell launcher for `python -m ptb1`.
+
+Out of scope:
+
+- Real orders.
+- Broker connections.
+- Robinhood.
+- Margin.
+- Short selling.
+- Options.
+- AI.
+- Machine learning.
+- Optimization.
+- File persistence.
+- Background services.
+
 ## Milestone 7: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
