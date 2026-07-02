@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
 from ptb1.market_data import CSVProvider, MarketDataProvider
+from ptb1.operations import OperationsActions, run_operations_center
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
 from ptb1.risk_manager import RiskManager
@@ -72,10 +74,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """Run strategies against one dataset, all datasets, or Learning Mode."""
     try:
-        args = build_parser().parse_args()
+        raw_args = sys.argv[1:] if argv is None else argv
+        if not raw_args:
+            _run_operations_center()
+            return
+
+        args = build_parser().parse_args(raw_args)
         if args.learning:
             _print_learning_mode()
             return
@@ -100,6 +107,35 @@ def main() -> None:
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}")
         raise SystemExit(1) from exc
+
+
+def _run_operations_center() -> None:
+    """Launch the display-only Operations Center."""
+    market_data_provider = CSVProvider()
+    run_operations_center(
+        data_dir=Path("datasets"),
+        actions=OperationsActions(
+            research=lambda: _run_default_research(market_data_provider),
+            paper=lambda: _run_paper_mode(
+                Path("datasets/sample_prices.csv"),
+                "RSI",
+                10_000.0,
+                False,
+                market_data_provider,
+            ),
+            learning=_print_learning_mode,
+        ),
+    )
+
+
+def _run_default_research(market_data_provider: MarketDataProvider) -> None:
+    """Launch the existing default research flow from Operations Center."""
+    dataset = _run_dataset(Path("datasets/sample_prices.csv"), 10_000.0, market_data_provider)
+    print("PTB-1 Milestone 3 Dataset Engine")
+    print("Datasets loaded: 1")
+    print("Starting cash: $10,000.00")
+    print()
+    _print_dataset_report(dataset)
 
 
 def _print_learning_mode() -> None:

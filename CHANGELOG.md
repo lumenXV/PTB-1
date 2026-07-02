@@ -4,6 +4,14 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 5.1: Operations Center
+
+- Added `ptb1/operations.py` as a display-only platform entry point.
+- Added startup banner, version display, runtime display, platform status, strategy count, dataset count, market provider status, and menu rendering.
+- Updated `python -m ptb1` to launch the Operations Center by default.
+- Preserved all existing flag-based commands.
+- Added Operations Center tests.
+
 ## Milestone 5: Live Market Data Foundation
 
 - Added internal `MarketDataRequest`.

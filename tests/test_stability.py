@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ptb1.historian import load_price_history
 from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataRequest
+from ptb1.operations import OperationsStatus, render_menu, render_status
 from ptb1.paper import PaperSession
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
@@ -122,6 +123,16 @@ class MarketDataProviderTests(unittest.TestCase):
 class CliStabilityTests(unittest.TestCase):
     """Verify that repeated CLI research runs remain stable."""
 
+    def test_default_command_launches_operations_center(self) -> None:
+        """The default command should print Operations Center and exit cleanly without input."""
+        result = self._run_ptb1()
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("PTB-1 Operations Center", result.stdout)
+        self.assertIn("Version v0.5.1", result.stdout)
+        self.assertIn("Menu", result.stdout)
+        self.assertIn("Exiting PTB-1 Operations Center.", result.stdout)
+
     def test_repeated_single_dataset_runs_are_identical(self) -> None:
         """The same dataset should produce the same report on repeated runs."""
         first_run = self._run_ptb1("--data", "datasets/sample_prices.csv")
@@ -208,6 +219,40 @@ class PaperSessionTests(unittest.TestCase):
         self.assertEqual(len(result.account.positions), 0)
         self.assertEqual(len(result.account.trade_log), 2)
         self.assertGreater(len(result.account.order_log), len(result.account.trade_log))
+
+
+class OperationsCenterTests(unittest.TestCase):
+    """Verify Operations Center display rendering."""
+
+    def test_render_status_contains_platform_summary(self) -> None:
+        """Operations status should include platform and verification facts."""
+        output = render_status(
+            OperationsStatus(
+                version="v0.5.1",
+                stable_branch="stable/v0.5",
+                runtime_seconds=0,
+                strategy_count=4,
+                dataset_count=3,
+                market_provider_status="HTTP Ready",
+                mode="Idle",
+            )
+        )
+
+        self.assertIn("Research Engine", output)
+        self.assertIn("Paper Trading", output)
+        self.assertIn("Market Provider", output)
+        self.assertIn("Stability Harness", output)
+        self.assertIn("Runtime", output)
+
+    def test_render_menu_contains_expected_options(self) -> None:
+        """Operations menu should expose the expected launch options."""
+        output = render_menu()
+
+        self.assertIn("1. Research", output)
+        self.assertIn("2. Paper Trading", output)
+        self.assertIn("3. Learning Mode", output)
+        self.assertIn("4. System Status", output)
+        self.assertIn("5. Exit", output)
 
 
 def _fake_market_response() -> dict[str, object]:

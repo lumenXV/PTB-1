@@ -159,6 +159,38 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Milestone 5.1: Operations Center
+
+Status: complete.
+
+Goal: provide a unified display-only platform entry point without changing engine behavior.
+
+Implemented:
+
+- `ptb1/operations.py` display-only Operations Center.
+- Startup banner and version display.
+- Platform status display.
+- Runtime display.
+- Registered strategy count.
+- Dataset count.
+- Market provider readiness.
+- Stability harness readiness display.
+- Numbered menu rendering.
+- Default `python -m ptb1` launcher.
+
+Out of scope:
+
+- Engine ownership changes.
+- Research metric calculations.
+- Strategy modifications.
+- Paper trading behavior changes.
+- Live trading.
+- Broker connections.
+- Robinhood.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 6: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

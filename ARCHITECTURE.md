@@ -13,6 +13,7 @@ If the answer is no, do not implement it.
 ```mermaid
 flowchart LR
     CLI["CLI Runner"] --> DatasetFiles["datasets/*.csv"]
+    CLI --> Operations["Operations Center"]
     CLI --> MarketData["Market Data Provider"]
     MarketData --> Historian["Historian"]
     CLI --> Strategies["Strategies"]
@@ -81,6 +82,33 @@ Must not:
 - Connect to brokers.
 - Place orders.
 - Expose provider-specific response objects outside the provider.
+
+### Operations Center
+
+Module: `ptb1/operations.py`
+
+Responsibilities:
+
+- Display startup banner.
+- Display platform status.
+- Display version.
+- Display runtime.
+- Display registered strategy count.
+- Display dataset count.
+- Display market provider status.
+- Display verification summary.
+- Render the menu.
+
+Must not:
+
+- Execute trades.
+- Calculate metrics.
+- Modify strategies.
+- Modify research behavior.
+- Modify paper trading behavior.
+- Own validation.
+- Own risk management.
+- Own market data retrieval.
 
 ### Researcher
 
@@ -228,6 +256,7 @@ Module: `ptb1/cli.py`
 
 Responsibilities:
 
+- Launch the Operations Center when no flags are provided.
 - Select one dataset or all datasets.
 - Use the internal CSV market data provider.
 - Keep live market data provider internals out of the public CLI.

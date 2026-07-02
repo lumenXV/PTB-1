@@ -5,6 +5,7 @@ PTB-1 is an AI trading research platform. It is not a live trading bot.
 Milestone 4 adds a Paper Trading Engine. PTB-1 can still run research backtests across one or many CSV datasets, and it can now run one strategy at a time with fake money only.
 Milestone 4.5 adds an internal market data provider interface with CSV as the only current provider.
 Milestone 5 adds an internal HTTP market data foundation without adding public market-data commands or live trading.
+Milestone 5.1 adds a display-only Operations Center as the default platform entry point.
 
 Learning Mode is a read-only companion feature. It teaches what PTB-1 is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -18,7 +19,13 @@ PTB-1 does not include Robinhood, AI, machine learning, live trading, optimizati
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Run Milestone 3
+## Run PTB-1
+
+Launch the Operations Center:
+
+```powershell
+python -m ptb1
+```
 
 Run one dataset:
 
@@ -69,6 +76,7 @@ No third-party dependencies are required.
 ```mermaid
 flowchart LR
     CLI --> DatasetFiles["datasets/*.csv"]
+    CLI["CLI Runner\ndisplay + orchestration"] --> Operations["Operations Center\nstatus + menu"]
     CLI["CLI Runner\ndisplay + orchestration"] --> MarketData["Market Data\nprovider interface"]
     MarketData --> Historian["Historian\ncreate + validate PriceBars"]
     CLI --> Strategies["Strategies\nexplicit registry"]
@@ -90,6 +98,7 @@ flowchart LR
 | Employee | Module | One responsibility |
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
+| Operations Center | `ptb1/operations.py` | Display platform status and menu options. |
 | Market Data | `ptb1/market_data.py` | Provide internal CSV and HTTP market data providers. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
@@ -111,9 +120,10 @@ No module should do another employee's job.
 5. Paper trading. Done in Milestone 4.
 6. Market data provider interface. Done in Milestone 4.5.
 7. Live market data foundation. Done in Milestone 5.
-8. Portfolio tracking.
-9. Robinhood MCP.
-10. AI researcher.
-11. Learning engine.
-12. Market Memory.
-13. Mobile Dashboard.
+8. Operations Center. Done in Milestone 5.1.
+9. Portfolio tracking.
+10. Robinhood MCP.
+11. AI researcher.
+12. Learning engine.
+13. Market Memory.
+14. Mobile Dashboard.
