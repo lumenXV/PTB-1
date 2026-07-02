@@ -25,3 +25,6 @@ jobs:
 
       - name: Run all datasets
         run: python -m ptb1 --all-datasets
+
+      - name: Run paper trading smoke test
+        run: python -m ptb1 --paper --strategy RSI --data datasets/sample_prices.csv

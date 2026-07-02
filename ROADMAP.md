@@ -76,7 +76,36 @@ Out of scope:
 
 ## Milestone 4: Paper Trading
 
-Run strategies against simulated live market conditions without placing real trades.
+Status: complete.
+
+Goal: simulate real-time trading with fake money while staying separate from research backtesting.
+
+Implemented:
+
+- `ptb1/paper.py` fake-money paper trading engine.
+- Fake cash balance.
+- Fake long-only positions.
+- Simulated buy and sell orders.
+- In-memory order log.
+- In-memory trade log.
+- Realized profit/loss.
+- Unrealized profit/loss.
+- Portfolio value.
+- Risk Manager approval before fake order fills.
+- Learning Mode explanations for paper trade signals.
+- Paper session diagnostics.
+- CLI paper mode for one strategy at a time.
+
+Out of scope:
+
+- Real brokers.
+- Robinhood.
+- Live trading.
+- AI.
+- Machine learning.
+- Optimization.
+- Slippage, commissions, partial fills, limits, stops, or latency.
+- File persistence.
 
 ## Milestone 5: Portfolio Engine
 

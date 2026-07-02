@@ -4,6 +4,16 @@ All notable PTB-1 changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 4: Paper Trading Engine
+
+- Added `ptb1/paper.py` for fake-money paper trading sessions.
+- Added fake cash, fake positions, fake order logs, fake trade logs, realized profit/loss, unrealized profit/loss, and portfolio value.
+- Added Risk Manager approval before fake paper order fills.
+- Added CLI paper mode for one strategy at a time.
+- Added optional `--paper-log` output with Learning Mode trade explanations.
+- Added paper trading stability tests.
+- Updated GitHub Actions with a paper trading smoke test.
+
 ## Milestone 3.1: Stability Harness
 
 - Added a small `unittest` stability harness.

@@ -8,6 +8,9 @@ import unittest
 from pathlib import Path
 
 from ptb1.historian import load_price_history
+from ptb1.paper import PaperSession
+from ptb1.risk_manager import RiskManager
+from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +76,22 @@ class CliStabilityTests(unittest.TestCase):
         self.assertNotIn("Traceback", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_paper_mode_runs_one_strategy(self) -> None:
+        """Paper mode should run one strategy without changing research mode."""
+        result = self._run_ptb1("--paper", "--strategy", "RSI", "--data", "datasets/sample_prices.csv")
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("PTB-1 Milestone 4 Paper Trading Engine", result.stdout)
+        self.assertIn("Strategy: RSI", result.stdout)
+        self.assertIn("Mode: Paper trading with fake money only", result.stdout)
+
+    def test_paper_mode_rejects_missing_strategy(self) -> None:
+        """Paper mode should require an explicit strategy."""
+        result = self._run_ptb1("--paper", "--data", "datasets/sample_prices.csv")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Paper mode requires --strategy", result.stdout)
+
     def _run_ptb1(self, *args: str) -> subprocess.CompletedProcess[str]:
         """Run PTB-1 as a user would from the command line."""
         return subprocess.run(
@@ -82,3 +101,37 @@ class CliStabilityTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
+
+class PaperSessionTests(unittest.TestCase):
+    """Verify fake-money paper sessions stay separate and deterministic."""
+
+    def test_buy_and_hold_paper_session_tracks_open_position(self) -> None:
+        """Buy and Hold should open one fake long position and keep it open."""
+        prices = load_price_history(PROJECT_ROOT / "datasets" / "sample_prices.csv")
+        result = PaperSession(starting_cash=10_000.0, risk_manager=RiskManager()).run(
+            prices=prices,
+            strategy=BuyAndHoldStrategy(),
+            dataset_name="sample_prices",
+        )
+
+        self.assertEqual(result.account.cash, 0.0)
+        self.assertEqual(result.account.portfolio_value, 13_000.0)
+        self.assertEqual(len(result.account.positions), 1)
+        self.assertEqual(len(result.account.order_log), 1)
+        self.assertEqual(len(result.account.trade_log), 0)
+
+    def test_rsi_paper_session_records_completed_trades(self) -> None:
+        """RSI should create completed fake paper trades on the sample dataset."""
+        prices = load_price_history(PROJECT_ROOT / "datasets" / "sample_prices.csv")
+        result = PaperSession(starting_cash=10_000.0, risk_manager=RiskManager()).run(
+            prices=prices,
+            strategy=RsiStrategy(),
+            dataset_name="sample_prices",
+        )
+
+        self.assertEqual(result.account.cash, 13_748.0)
+        self.assertEqual(result.account.portfolio_value, 13_748.0)
+        self.assertEqual(len(result.account.positions), 0)
+        self.assertEqual(len(result.account.trade_log), 2)
+        self.assertGreater(len(result.account.order_log), len(result.account.trade_log))

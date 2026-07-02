@@ -6,7 +6,9 @@ import argparse
 from pathlib import Path
 
 from ptb1.historian import load_price_history
-from ptb1.learning import GlossaryEntry, StrategyEducation, get_glossary_entries
+from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
+from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
+from ptb1.researcher import Signal, Strategy
 from ptb1.risk_manager import RiskManager
 from ptb1.strategies import get_available_strategies
 from ptb1.trader import Backtester
@@ -48,6 +50,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print read-only strategy education and glossary entries.",
     )
     parser.add_argument(
+        "--paper",
+        action="store_true",
+        help="Run one strategy in fake-money paper mode.",
+    )
+    parser.add_argument(
+        "--strategy",
+        help="Strategy name for paper mode. Hyphens and spaces are treated the same.",
+    )
+    parser.add_argument(
+        "--paper-log",
+        action="store_true",
+        help="Print paper order and trade logs.",
+    )
+    parser.add_argument(
         "--cash",
         type=float,
         default=10_000.0,
@@ -62,6 +78,9 @@ def main() -> None:
         args = build_parser().parse_args()
         if args.learning:
             _print_learning_mode()
+            return
+        if args.paper:
+            _run_paper_mode(args.data, args.strategy, args.cash, args.paper_log)
             return
 
         dataset_paths = _discover_dataset_paths(args.data_dir) if args.all_datasets else [args.data]
@@ -141,6 +160,132 @@ def _discover_dataset_paths(data_dir: Path) -> list[Path]:
     if not dataset_paths:
         raise ValueError(f"No CSV datasets found in {data_dir}.")
     return dataset_paths
+
+
+def _run_paper_mode(path: Path, strategy_name: str | None, starting_cash: float, show_log: bool) -> None:
+    """Run one fake-money paper session and print the result."""
+    strategy = _find_strategy(strategy_name)
+    prices = load_price_history(path)
+    result = PaperSession(starting_cash=starting_cash, risk_manager=RiskManager()).run(
+        prices=prices,
+        strategy=strategy,
+        dataset_name=path.stem,
+    )
+    _print_paper_session(result, show_log)
+
+
+def _find_strategy(strategy_name: str | None) -> Strategy:
+    """Find one available strategy by display name."""
+    strategies = get_available_strategies()
+    if strategy_name is None:
+        names = ", ".join(strategy.name for strategy in strategies)
+        raise ValueError(f"Paper mode requires --strategy. Available strategies: {names}.")
+
+    normalized_name = _normalize_strategy_name(strategy_name)
+    for strategy in strategies:
+        if _normalize_strategy_name(strategy.name) == normalized_name:
+            return strategy
+
+    names = ", ".join(strategy.name for strategy in strategies)
+    raise ValueError(f"Unknown strategy '{strategy_name}'. Available strategies: {names}.")
+
+
+def _normalize_strategy_name(strategy_name: str) -> str:
+    """Normalize strategy names for CLI matching."""
+    return strategy_name.lower().replace("-", " ").strip()
+
+
+def _print_paper_session(result: PaperSessionResult, show_log: bool) -> None:
+    """Print a paper trading session report."""
+    account = result.account
+    filled_orders = [order for order in account.order_log if order.status == "FILLED"]
+    rejected_orders = [order for order in account.order_log if order.status == "REJECTED"]
+
+    print("PTB-1 Milestone 4 Paper Trading Engine")
+    print("Mode: Paper trading with fake money only")
+    print(f"Dataset: {result.dataset_name}")
+    print(f"Strategy: {result.strategy_name}")
+    print(f"Starting Cash: ${account.starting_cash:,.2f}")
+    print(f"Ending Cash: ${account.cash:,.2f}")
+    print(f"Realized P/L: {_format_currency(account.realized_profit_loss)}")
+    print(f"Unrealized P/L: {_format_currency(account.unrealized_profit_loss)}")
+    print(f"Portfolio Value: ${account.portfolio_value:,.2f}")
+    print(f"Open Positions: {len(account.positions)}")
+    print(f"Filled Orders: {len(filled_orders)}")
+    print(f"Rejected Orders: {len(rejected_orders)}")
+    print(f"Completed Paper Trades: {len(account.trade_log)}")
+    print()
+
+    _print_open_positions(account.positions)
+    _print_paper_diagnostics(result.diagnostics)
+
+    if show_log:
+        _print_order_log(account.order_log)
+        _print_trade_log(account.trade_log)
+
+
+def _print_open_positions(positions: dict[str, PaperPosition]) -> None:
+    """Print open paper positions."""
+    print("Open Position Details")
+    if not positions:
+        print("None")
+        print()
+        return
+
+    for position in positions.values():
+        print(
+            f"{position.symbol}: {position.quantity} shares, "
+            f"average entry ${position.average_entry_price:,.2f}, "
+            f"last price ${position.last_price:,.2f}, "
+            f"unrealized P/L {_format_currency(position.unrealized_profit_loss)}"
+        )
+    print()
+
+
+def _print_paper_diagnostics(diagnostics: list[str]) -> None:
+    """Print paper session diagnostics."""
+    print("Diagnostics")
+    for item in diagnostics:
+        print(f"- {item}")
+    print()
+
+
+def _print_order_log(order_log: list[PaperOrder]) -> None:
+    """Print fake paper orders."""
+    print("Order Log")
+    if not order_log:
+        print("No paper orders were created.")
+        print()
+        return
+
+    for order in order_log:
+        print(
+            f"#{order.order_id} {order.date} {order.side} {order.quantity} {order.symbol} "
+            f"at ${order.requested_price:,.2f} - {order.status}"
+        )
+        print(order.reason)
+        print("Trade Explanation")
+        print(explain_signal(order.strategy_name, Signal[order.side]))
+        print()
+
+
+def _print_trade_log(trade_log: list[PaperTrade]) -> None:
+    """Print completed fake paper trades."""
+    print("Trade Log")
+    if not trade_log:
+        print("No completed paper trades.")
+        print()
+        return
+
+    for trade in trade_log:
+        print(
+            f"{trade.strategy_name}: {trade.symbol} {trade.quantity} shares, "
+            f"{trade.entry_date} to {trade.exit_date}, "
+            f"realized P/L {_format_currency(trade.realized_profit_loss)} "
+            f"({_format_signed_percent(trade.realized_profit_loss_percent)}), "
+            f"hold {trade.holding_period_bars} bars"
+        )
+    print()
 
 
 def _run_dataset(path: Path, starting_cash: float) -> DatasetMetrics:
@@ -238,6 +383,17 @@ def _print_cross_dataset_summary(summary: CrossDatasetSummary) -> None:
 def _format_percent(value: float) -> str:
     """Format a percentage value."""
     return f"{value:.2f}%"
+
+
+def _format_signed_percent(value: float) -> str:
+    """Format a signed percentage value."""
+    return f"{value:+.2f}%"
+
+
+def _format_currency(value: float) -> str:
+    """Format a signed currency value."""
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}${abs(value):,.2f}"
 
 
 def _format_optional_percent(value: float | None) -> str:

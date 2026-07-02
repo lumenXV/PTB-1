@@ -19,7 +19,10 @@ flowchart LR
     Strategies --> Learning["Learning Mode"]
     CLI --> Learning
     CLI --> Trader["Trader"]
+    CLI --> Paper["Paper Trader"]
     Trader --> RiskManager["Risk Manager"]
+    Paper --> RiskManager
+    Paper --> Learning
     Trader --> Result["Backtest Results"]
     CLI --> Validator["Validator"]
     Result --> Validator
@@ -114,7 +117,6 @@ Responsibilities:
 
 - Execute backtests.
 - Record execution facts.
-- Execute paper trades in a future milestone.
 - Execute live trades only in a future milestone.
 
 Must not:
@@ -124,6 +126,30 @@ Must not:
 - Know dataset names.
 - Calculate statistics.
 - Generate research notes.
+
+### Paper Trader
+
+Module: `ptb1/paper.py`
+
+Responsibilities:
+
+- Run fake-money paper sessions.
+- Track fake cash balance.
+- Track fake long-only positions.
+- Record fake paper orders.
+- Record completed fake paper trades.
+- Calculate paper account value, realized profit/loss, and unrealized profit/loss.
+- Record paper session diagnostics.
+
+Must not:
+
+- Place real trades.
+- Connect to a broker.
+- Execute research backtests.
+- Calculate Validator research metrics.
+- Create strategies.
+- Change strategy signals.
+- Change risk rules.
 
 ### Validator
 
@@ -186,6 +212,7 @@ Responsibilities:
 - Display research notes.
 - Display cross-dataset summaries.
 - Display Learning Mode content.
+- Display paper trading summaries, logs, and diagnostics.
 
 Must not:
 
