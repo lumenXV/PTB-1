@@ -222,6 +222,44 @@ class MarketDataProviderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Rate limited"):
             provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
 
+    def test_provider_check_success(self) -> None:
+        """Provider check should return OK and last price for valid provider data."""
+        provider = HTTPMarketProvider(fetcher=lambda request: _fake_market_response())
+
+        result = provider.check(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.OK)
+        self.assertEqual(result.symbol, "AMD")
+        self.assertEqual(result.last_price, 102.0)
+        self.assertEqual(result.reason, "Fresh provider data received.")
+
+    def test_provider_check_rate_limited(self) -> None:
+        """Provider check should report rate limits without raising."""
+        def rate_limited_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise HTTPError("https://example.test", 429, "Too Many Requests", {"Retry-After": "60"}, None)
+
+        result = HTTPMarketProvider(fetcher=rate_limited_fetcher).check(
+            MarketDataRequest(symbol="AMD", period="5d", interval="1d")
+        )
+
+        self.assertEqual(result.status, MarketDataStatus.RATE_LIMITED)
+        self.assertEqual(result.http_status, 429)
+        self.assertEqual(result.retry_after, "60")
+        self.assertIn("rate limited", result.reason)
+
+    def test_provider_check_network_error(self) -> None:
+        """Provider check should report network errors without raising."""
+        def failing_fetcher(request: MarketDataRequest) -> dict[str, object]:
+            raise OSError("network unavailable")
+
+        result = HTTPMarketProvider(fetcher=failing_fetcher).check(
+            MarketDataRequest(symbol="AMD", period="5d", interval="1d")
+        )
+
+        self.assertEqual(result.status, MarketDataStatus.ERROR)
+        self.assertIsNone(result.http_status)
+        self.assertIn("Network failure", result.reason)
+
 
 class ProviderManagerTests(unittest.TestCase):
     """Verify market data cache, cooldown, and provider status handling."""

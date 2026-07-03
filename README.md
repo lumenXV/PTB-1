@@ -12,6 +12,7 @@ Milestone 6 rebrands the user experience to QMR.CO and adds read-only Live Marke
 Milestone 6.5 adds fake-money live paper trading and a simple PowerShell launcher.
 Milestone 6.7 adds market-layer reliability with in-memory caching, cooldowns, and no-trade safety for bad data.
 Milestone 7 adds a standard-library Security Skeleton for redaction, safe audit logs, secret validation, config validation, and a compress-first protected storage placeholder.
+Milestone 7.1 adds safe provider diagnostics and HTTP request hygiene for live price recovery.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -67,6 +68,12 @@ Run a limited fake-money live paper session:
 
 ```powershell
 python -m ptb1 --live-paper --symbol AMD --strategy RSI --cash 10000 --interval 1 --max-iterations 3
+```
+
+Check the live price provider safely:
+
+```powershell
+python -m ptb1 --provider-check --symbol AMD
 ```
 
 Print the fake paper order and trade logs:
@@ -135,7 +142,7 @@ flowchart LR
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
 | Operations Center | `ptb1/operations.py` | Display platform status, menu options, and read-only watchlist state. |
-| Market Data | `ptb1/market_data.py` | Provide internal providers, cached market results, cooldowns, and provider-neutral status. |
+| Market Data | `ptb1/market_data.py` | Provide internal providers, cached market results, cooldowns, diagnostics, and provider-neutral status. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -163,9 +170,10 @@ No module should do another employee's job.
 10. Live paper trading. Done in Milestone 6.5.
 11. Market layer reliability. Done in Milestone 6.7.
 12. Security Skeleton. Done in Milestone 7.
-13. Portfolio tracking.
-14. Robinhood MCP.
-15. AI researcher.
-16. Learning engine.
-17. Market Memory.
-18. Mobile Dashboard.
+13. Price provider recovery. Done in Milestone 7.1.
+14. Portfolio tracking.
+15. Robinhood MCP.
+16. AI researcher.
+17. Learning engine.
+18. Market Memory.
+19. Mobile Dashboard.

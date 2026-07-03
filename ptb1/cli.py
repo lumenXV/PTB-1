@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
-from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataProvider, ProviderManager
+from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataProvider, MarketDataRequest, ProviderCheckResult, ProviderManager
 from ptb1.operations import OperationsActions, run_operations_center
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run a fake-money live paper loop with market data.",
     )
     parser.add_argument(
+        "--provider-check",
+        action="store_true",
+        help="Run a safe market data provider diagnostic for one symbol.",
+    )
+    parser.add_argument(
         "--symbol",
         action="append",
         default=[],
@@ -110,6 +115,9 @@ def main(argv: list[str] | None = None) -> None:
             _print_learning_mode()
             return
         market_data_provider = CSVProvider()
+        if args.provider_check:
+            _run_provider_check(args.symbol)
+            return
         if args.live_paper:
             _run_live_paper_mode(args.symbol, args.strategy, args.cash, args.interval, args.max_iterations)
             return
@@ -264,6 +272,29 @@ def _run_live_paper_mode(
             max_iterations=max_iterations,
         )
     )
+
+
+def _run_provider_check(symbols: list[str]) -> None:
+    """Run a safe provider diagnostic check."""
+    if not symbols:
+        raise ValueError("Provider check requires --symbol.")
+    result = HTTPMarketProvider().check(MarketDataRequest(symbol=symbols[0], period="5d", interval="1d"))
+    _print_provider_check(result)
+
+
+def _print_provider_check(result: ProviderCheckResult) -> None:
+    """Print safe provider diagnostic output."""
+    last_price = "N/A" if result.last_price is None else f"${result.last_price:,.2f}"
+    http_status = "N/A" if result.http_status is None else str(result.http_status)
+    retry_after = "N/A" if result.retry_after is None else result.retry_after
+    print("QMR.CO Provider Check")
+    print(f"Provider: {result.provider_name}")
+    print(f"Symbol: {result.symbol}")
+    print(f"Status: {result.status.value}")
+    print(f"HTTP Status: {http_status}")
+    print(f"Last Price: {last_price}")
+    print(f"Retry After: {retry_after}")
+    print(f"Reason: {result.reason}")
 
 
 def _find_strategy(strategy_name: str | None) -> Strategy:

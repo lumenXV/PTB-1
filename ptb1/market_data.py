@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Protocol, TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from ptb1.historian import PriceBar, create_price_bar, load_price_history
 
@@ -46,6 +46,20 @@ class MarketDataStatus(Enum):
     ERROR = "ERROR"
     STALE = "STALE"
     MISSING = "MISSING"
+
+
+@dataclass(frozen=True)
+class ProviderCheckResult:
+    """Safe diagnostic result for one provider request."""
+
+    provider_name: str
+    symbol: str
+    status: MarketDataStatus
+    http_status: int | None
+    last_price: float | None
+    reason: str
+    retry_after: str | None
+    checked_at: str
 
 
 @dataclass(frozen=True)
@@ -129,6 +143,132 @@ class HTTPMarketProvider:
     def connection_status(self) -> str:
         """Return display-only provider readiness."""
         return "Connected"
+
+    def check(self, request: MarketDataRequest) -> ProviderCheckResult:
+        """Run a safe provider diagnostic check for one symbol."""
+        _validate_request(request)
+        if self.fetcher is not _fetch_chart_response:
+            return self._check_injected_fetcher(request)
+
+        checked_at = datetime.now().strftime("%H:%M:%S")
+        try:
+            response, http_status, retry_after = _fetch_chart_response_with_metadata(request)
+            bars = [
+                create_price_bar(row=row, source=f"{self.name} market data check for {request.symbol}", line_number=index)
+                for index, row in enumerate(_chart_response_to_rows(response=response, symbol=request.symbol), start=1)
+            ]
+        except HTTPError as exc:
+            status = MarketDataStatus.RATE_LIMITED if exc.code == 429 else MarketDataStatus.ERROR
+            reason = "Provider rate limited the request." if exc.code == 429 else f"Provider returned HTTP {exc.code}."
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=status,
+                http_status=exc.code,
+                last_price=None,
+                reason=reason,
+                retry_after=exc.headers.get("Retry-After") if exc.headers else None,
+                checked_at=checked_at,
+            )
+        except TimeoutError:
+            return _provider_check_failure(self.name, request.symbol, "Timed out loading market data.", checked_at)
+        except OSError:
+            return _provider_check_failure(self.name, request.symbol, "Network failure loading market data.", checked_at)
+        except (ValueError, json.JSONDecodeError) as exc:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.ERROR,
+                http_status=None,
+                last_price=None,
+                reason=str(exc),
+                retry_after=None,
+                checked_at=checked_at,
+            )
+
+        if not bars:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.MISSING,
+                http_status=http_status,
+                last_price=None,
+                reason="Provider returned no market data.",
+                retry_after=retry_after,
+                checked_at=checked_at,
+            )
+
+        return ProviderCheckResult(
+            provider_name=self.name,
+            symbol=bars[-1].symbol,
+            status=MarketDataStatus.OK,
+            http_status=http_status,
+            last_price=bars[-1].close,
+            reason="Fresh provider data received.",
+            retry_after=retry_after,
+            checked_at=checked_at,
+        )
+
+    def _check_injected_fetcher(self, request: MarketDataRequest) -> ProviderCheckResult:
+        """Run provider diagnostics through an injected test fetcher."""
+        checked_at = datetime.now().strftime("%H:%M:%S")
+        try:
+            response = self.fetcher(request)
+            bars = [
+                create_price_bar(row=row, source=f"{self.name} market data check for {request.symbol}", line_number=index)
+                for index, row in enumerate(_chart_response_to_rows(response=response, symbol=request.symbol), start=1)
+            ]
+        except HTTPError as exc:
+            status = MarketDataStatus.RATE_LIMITED if exc.code == 429 else MarketDataStatus.ERROR
+            reason = "Provider rate limited the request." if exc.code == 429 else f"Provider returned HTTP {exc.code}."
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=status,
+                http_status=exc.code,
+                last_price=None,
+                reason=reason,
+                retry_after=exc.headers.get("Retry-After") if exc.headers else None,
+                checked_at=checked_at,
+            )
+        except TimeoutError:
+            return _provider_check_failure(self.name, request.symbol, "Timed out loading market data.", checked_at)
+        except OSError:
+            return _provider_check_failure(self.name, request.symbol, "Network failure loading market data.", checked_at)
+        except (ValueError, json.JSONDecodeError) as exc:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.ERROR,
+                http_status=None,
+                last_price=None,
+                reason=str(exc),
+                retry_after=None,
+                checked_at=checked_at,
+            )
+
+        if not bars:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.MISSING,
+                http_status=None,
+                last_price=None,
+                reason="Provider returned no market data.",
+                retry_after=None,
+                checked_at=checked_at,
+            )
+
+        return ProviderCheckResult(
+            provider_name=self.name,
+            symbol=bars[-1].symbol,
+            status=MarketDataStatus.OK,
+            http_status=None,
+            last_price=bars[-1].close,
+            reason="Fresh provider data received.",
+            retry_after=None,
+            checked_at=checked_at,
+        )
 
     def _fetch(self, request: MarketDataRequest) -> dict[str, Any]:
         """Fetch provider data and normalize fetch failures."""
@@ -354,11 +494,9 @@ def _quote_from_bars(bars: list[PriceBar], updated_at: datetime) -> MarketQuote 
 
 def _fetch_chart_response(request: MarketDataRequest) -> dict[str, Any]:
     """Fetch chart data from the current internal HTTP source."""
-    params = urlencode({"range": request.period, "interval": request.interval})
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{request.symbol}?{params}"
     try:
-        with urlopen(url, timeout=10) as response:
-            return json.loads(response.read().decode("utf-8"))
+        response, _, _ = _fetch_chart_response_with_metadata(request)
+        return response
     except HTTPError as exc:
         if exc.code == 404:
             raise ValueError(f"Invalid market data symbol: {request.symbol}.") from exc
@@ -371,6 +509,37 @@ def _fetch_chart_response(request: MarketDataRequest) -> dict[str, Any]:
         raise OSError from exc
     except json.JSONDecodeError as exc:
         raise ValueError(f"Malformed market data response for {request.symbol}.") from exc
+
+
+def _fetch_chart_response_with_metadata(request: MarketDataRequest) -> tuple[dict[str, Any], int, str | None]:
+    """Fetch chart data with safe HTTP metadata."""
+    params = urlencode({"range": request.period, "interval": request.interval})
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{request.symbol}?{params}"
+    http_request = Request(
+        url,
+        headers={
+            "User-Agent": "QMR.CO/0.7 (+https://github.com/lumenXV/PTB-1)",
+            "Accept": "application/json",
+        },
+    )
+    with urlopen(http_request, timeout=10) as response:
+        body = response.read().decode("utf-8")
+        retry_after = response.headers.get("Retry-After")
+        return json.loads(body), response.status, retry_after
+
+
+def _provider_check_failure(provider_name: str, symbol: str, reason: str, checked_at: str) -> ProviderCheckResult:
+    """Build a safe provider diagnostic failure."""
+    return ProviderCheckResult(
+        provider_name=provider_name,
+        symbol=symbol.upper(),
+        status=MarketDataStatus.ERROR,
+        http_status=None,
+        last_price=None,
+        reason=reason,
+        retry_after=None,
+        checked_at=checked_at,
+    )
 
 
 def _chart_response_to_rows(response: dict[str, Any], symbol: str) -> list[dict[str, object]]:

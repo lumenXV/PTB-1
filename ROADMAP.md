@@ -321,6 +321,34 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Milestone 7.1: Price Provider Recovery
+
+Status: complete.
+
+Goal: explain live price provider failures and improve request hygiene without changing trading behavior.
+
+Implemented:
+
+- `ProviderCheckResult` for safe provider diagnostics.
+- `HTTPMarketProvider.check()` for provider health checks.
+- `python -m ptb1 --provider-check --symbol AMD`.
+- Request headers for `User-Agent` and `Accept: application/json`.
+- Safe diagnostic output with provider name, symbol, status, HTTP status, last price, reason, and retry-after.
+- Unit tests for provider-check success, rate limit, and network error.
+
+Out of scope:
+
+- Real trading.
+- Broker connections.
+- Robinhood.
+- Paid API keys.
+- Provider response body dumps.
+- Strategy changes.
+- Paper-account behavior changes.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 8: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

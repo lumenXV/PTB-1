@@ -79,6 +79,8 @@ Responsibilities:
 - Provide provider-neutral market data results.
 - Manage in-memory market data freshness.
 - Apply rate-limit cooldowns.
+- Provide safe provider diagnostics.
+- Set request hygiene headers for live provider requests.
 - Provide read-only quote data.
 - Delegate CSV loading to Historian.
 - Convert HTTP provider responses into Historian-compatible rows.
@@ -94,6 +96,7 @@ Must not:
 - Place orders.
 - Expose provider-specific response objects outside the provider.
 - Label stale data as fresh.
+- Dump full provider response bodies into logs or output.
 
 ### Security
 

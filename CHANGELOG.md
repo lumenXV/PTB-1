@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 7.1: Price Provider Recovery
+
+- Added `ProviderCheckResult` for safe market provider diagnostics.
+- Added `HTTPMarketProvider.check()` to report provider status without raising into the CLI.
+- Added `python -m ptb1 --provider-check --symbol AMD`.
+- Added live provider request headers for `User-Agent` and `Accept: application/json`.
+- Added safe diagnostic output for provider name, symbol, status, HTTP status, last price, reason, and retry-after.
+- Added provider-check tests for success, rate limit, and network error.
+- Preserved live paper no-trade behavior unless market data is fresh `OK`.
+
 ## Milestone 7: Security Skeleton
 
 - Added `ptb1/security.py`.
