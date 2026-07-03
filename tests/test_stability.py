@@ -24,6 +24,7 @@ from ptb1.operations import OperationsStatus, Watchlist, render_market_intellige
 from ptb1.paper import PaperSession
 from ptb1.researcher import Signal
 from ptb1.risk_manager import RiskManager
+from ptb1.security import AuditLogger, ConfigValidator, PrivacyFilter, SecretManager, SecureStorage
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
 
 
@@ -58,6 +59,86 @@ class HistorianValidationTests(unittest.TestCase):
         """An invalid date should be rejected."""
         with self.assertRaisesRegex(ValueError, "Invalid date"):
             load_price_history(FIXTURES / "bad_date.csv")
+
+
+class SecuritySkeletonTests(unittest.TestCase):
+    """Verify QMR.CO security and trust primitives are safe by default."""
+
+    def test_privacy_filter_redacts_sensitive_values(self) -> None:
+        """Sensitive text values should be redacted from output."""
+        output = PrivacyFilter().redact(
+            "email=user@example.com api_key=abc123 token=secret-token Bearer abc.def"
+        )
+
+        self.assertNotIn("user@example.com", output)
+        self.assertNotIn("abc123", output)
+        self.assertNotIn("secret-token", output)
+        self.assertIn("<redacted-email>", output)
+
+    def test_privacy_filter_redacts_raw_ips(self) -> None:
+        """Raw IP addresses should not appear in safe output."""
+        output = PrivacyFilter().redact("provider request from 192.168.1.10")
+
+        self.assertNotIn("192.168.1.10", output)
+        self.assertIn("<redacted-ip>", output)
+
+    def test_secret_manager_never_prints_secret_values(self) -> None:
+        """SecretManager diagnostics should expose presence only."""
+        manager = SecretManager(env={"QMR_TOKEN": "super-secret-value"})
+
+        self.assertEqual(manager.require(["QMR_TOKEN"])["QMR_TOKEN"], "super-secret-value")
+        self.assertEqual(manager.redacted_environment(["QMR_TOKEN"]), {"QMR_TOKEN": "<set>"})
+
+        with self.assertRaisesRegex(ValueError, "MISSING_TOKEN"):
+            manager.require(["MISSING_TOKEN"])
+
+    def test_secure_storage_does_not_store_plaintext_and_round_trips(self) -> None:
+        """Protected storage should not contain plaintext and should reveal explicitly."""
+        storage = SecureStorage()
+        secret_data = "watchlist=AMD,NVDA email=user@example.com"
+
+        protected = storage.protect(secret_data)
+
+        self.assertNotIn(secret_data, protected)
+        self.assertNotIn("user@example.com", protected)
+        self.assertEqual(storage.reveal(protected), secret_data)
+
+    def test_audit_logger_redacts_sensitive_values(self) -> None:
+        """Audit logs should be safe to view and share."""
+        logger = AuditLogger()
+
+        logger.record(
+            "provider request",
+            "provider failed for user@example.com from 10.0.0.1",
+            {"api_key": "abc123", "symbol": "AMD", "account_id": "acct-1"},
+        )
+
+        entry = logger.entries()[0]
+        serialized = f"{entry.event_type} {entry.message} {entry.details}"
+        self.assertNotIn("user@example.com", serialized)
+        self.assertNotIn("10.0.0.1", serialized)
+        self.assertNotIn("abc123", serialized)
+        self.assertNotIn("acct-1", serialized)
+        self.assertIn("AMD", serialized)
+
+    def test_config_validator_rejects_unsafe_config(self) -> None:
+        """Unsafe config should fail closed."""
+        validator = ConfigValidator(secret_manager=SecretManager(env={}))
+
+        with self.assertRaisesRegex(ValueError, "live trading"):
+            validator.validate({"live_trading_enabled": True})
+        with self.assertRaisesRegex(ValueError, "broker secrets"):
+            validator.validate({"broker_api_key": "abc123"})
+        with self.assertRaisesRegex(ValueError, "privacy_logging"):
+            validator.validate({"privacy_logging": "raw"})
+
+    def test_config_validator_accepts_safe_defaults(self) -> None:
+        """Empty config should resolve to safe defaults."""
+        validated = ConfigValidator(secret_manager=SecretManager(env={})).validate({})
+
+        self.assertEqual(validated.privacy_logging, "redacted")
+        self.assertEqual(validated.storage_mode, "protected")
+        self.assertFalse(validated.live_trading_enabled)
 
 
 class MarketDataProviderTests(unittest.TestCase):

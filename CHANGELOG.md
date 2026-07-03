@@ -4,6 +4,17 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 7: Security Skeleton
+
+- Added `ptb1/security.py`.
+- Added `SecureStorage` as a compress-first protected storage placeholder.
+- Added `SecretManager` for environment-backed secret validation without printing secrets.
+- Added `PrivacyFilter` for redacting emails, IP addresses, tokens, API keys, credentials, account IDs, and tax IDs.
+- Added `AuditLogger` for safe-to-view platform events.
+- Added `ConfigValidator` with fail-closed defaults.
+- Added tests for redaction, secret handling, protected storage, audit safety, and unsafe config rejection.
+- Documented that true production encryption requires a future approved crypto dependency.
+
 ## Milestone 6.7: Market Layer Reliability
 
 - Added provider-neutral market data statuses and result objects.

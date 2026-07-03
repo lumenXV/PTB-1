@@ -26,6 +26,7 @@ flowchart LR
     CLI --> Trader["Trader"]
     CLI --> Paper["Paper Trader"]
     CLI --> LivePaper["Live Paper Trader"]
+    CLI --> Security["Security Skeleton"]
     Trader --> RiskManager["Risk Manager"]
     Paper --> RiskManager
     LivePaper --> RiskManager
@@ -93,6 +94,29 @@ Must not:
 - Place orders.
 - Expose provider-specific response objects outside the provider.
 - Label stale data as fresh.
+
+### Security
+
+Module: `ptb1/security.py`
+
+Responsibilities:
+
+- Provide redaction utilities for sensitive output.
+- Validate secrets loaded from environment-style sources.
+- Provide safe-to-view audit entries.
+- Validate config with fail-closed defaults.
+- Provide a compress-first protected storage placeholder interface.
+- Preserve metadata needed for future key rotation and user-owned keys.
+
+Must not:
+
+- Claim production-grade encryption without an approved crypto dependency.
+- Print secrets.
+- Log raw emails, IP addresses, API keys, tokens, broker credentials, account IDs, or tax data.
+- Place trades.
+- Connect to brokers.
+- Change strategy logic.
+- Change research, paper, or live-paper behavior.
 
 ### Operations Center
 

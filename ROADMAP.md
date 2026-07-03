@@ -287,26 +287,60 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
-## Milestone 7: Portfolio Engine
+## Milestone 7: Security Skeleton
+
+Status: complete.
+
+Goal: create a reusable security and trust foundation before adding more major features.
+
+Implemented:
+
+- `ptb1/security.py`.
+- `SecureStorage` compress-first protected storage placeholder.
+- `SecretManager` for environment-backed secret validation.
+- `PrivacyFilter` for redacting sensitive values.
+- `AuditLogger` for safe-to-view platform events.
+- `ConfigValidator` with fail-closed defaults.
+- Tests for redaction, secret safety, protected storage round-trip, audit safety, and unsafe config rejection.
+
+Security honesty:
+
+- No new crypto dependency was added.
+- `SecureStorage` is not production-grade encryption.
+- True production encryption requires a future approved crypto dependency.
+
+Out of scope:
+
+- Real trading.
+- Broker connections.
+- Robinhood.
+- Production encryption.
+- Key rotation implementation.
+- User-owned key implementation.
+- AI.
+- Machine learning.
+- Optimization.
+
+## Milestone 8: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
 
-## Milestone 8: Robinhood MCP Integration
+## Milestone 9: Robinhood MCP Integration
 
 Integrate Robinhood through MCP only after paper trading proves the system is ready.
 
-## Milestone 9: AI Researcher
+## Milestone 10: AI Researcher
 
 Use AI to assist research only after strategy validation workflows are reliable.
 
-## Milestone 10: Learning Engine
+## Milestone 11: Learning Engine
 
 Learn from validated results without bypassing explainability or verification.
 
-## Milestone 11: Market Memory
+## Milestone 12: Market Memory
 
 Remember strategies, tests, failures, and compressed historical research summaries.
 
-## Milestone 12: Mobile Dashboard
+## Milestone 13: Mobile Dashboard
 
 Provide a focused dashboard for reviewing research state and results.
