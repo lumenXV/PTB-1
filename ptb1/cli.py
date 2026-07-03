@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
-from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataProvider, MarketDataRequest, ProviderCheckResult, ProviderManager
+from ptb1.market_data import CSVProvider, MarketDataProvider, MarketDataRequest, ProviderCheckResult, ProviderManager
 from ptb1.operations import OperationsActions, run_operations_center
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
@@ -263,7 +263,7 @@ def _run_live_paper_mode(
         names = ", ".join(strategy.name for strategy in get_available_strategies())
         raise ValueError(f"Live paper mode requires --strategy. Available strategies: {names}.")
     strategy = _find_strategy(strategy_name)
-    LivePaperSession(provider=ProviderManager(provider=HTTPMarketProvider()), risk_manager=RiskManager()).run(
+    LivePaperSession(provider=ProviderManager(), risk_manager=RiskManager()).run(
         LivePaperConfig(
             symbols=[symbol.upper() for symbol in symbols],
             strategy=strategy,
@@ -278,7 +278,7 @@ def _run_provider_check(symbols: list[str]) -> None:
     """Run a safe provider diagnostic check."""
     if not symbols:
         raise ValueError("Provider check requires --symbol.")
-    result = HTTPMarketProvider().check(MarketDataRequest(symbol=symbols[0], period="5d", interval="1d"))
+    result = ProviderManager().check(MarketDataRequest(symbol=symbols[0], period="5d", interval="1d"))
     _print_provider_check(result)
 
 
@@ -289,12 +289,16 @@ def _print_provider_check(result: ProviderCheckResult) -> None:
     retry_after = "N/A" if result.retry_after is None else result.retry_after
     print("QMR.CO Provider Check")
     print(f"Provider: {result.provider_name}")
+    print(f"Provider Used: {result.provider_used or 'N/A'}")
     print(f"Symbol: {result.symbol}")
     print(f"Status: {result.status.value}")
     print(f"HTTP Status: {http_status}")
     print(f"Last Price: {last_price}")
     print(f"Retry After: {retry_after}")
     print(f"Reason: {result.reason}")
+    print("Attempts:")
+    for provider_name in result.attempted_providers:
+        print(f"- {provider_name}")
 
 
 def _find_strategy(strategy_name: str | None) -> Strategy:

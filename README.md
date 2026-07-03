@@ -13,6 +13,7 @@ Milestone 6.5 adds fake-money live paper trading and a simple PowerShell launche
 Milestone 6.7 adds market-layer reliability with in-memory caching, cooldowns, and no-trade safety for bad data.
 Milestone 7 adds a standard-library Security Skeleton for redaction, safe audit logs, secret validation, config validation, and a compress-first protected storage placeholder.
 Milestone 7.1 adds safe provider diagnostics and HTTP request hygiene for live price recovery.
+Milestone 7.2 makes Stooq the primary no-key live price provider with the existing HTTP provider as fallback.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -142,7 +143,7 @@ flowchart LR
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
 | Operations Center | `ptb1/operations.py` | Display platform status, menu options, and read-only watchlist state. |
-| Market Data | `ptb1/market_data.py` | Provide internal providers, cached market results, cooldowns, diagnostics, and provider-neutral status. |
+| Market Data | `ptb1/market_data.py` | Provide internal providers, Stooq primary live data, HTTP fallback, cached market results, cooldowns, diagnostics, and provider-neutral status. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -171,9 +172,10 @@ No module should do another employee's job.
 11. Market layer reliability. Done in Milestone 6.7.
 12. Security Skeleton. Done in Milestone 7.
 13. Price provider recovery. Done in Milestone 7.1.
-14. Portfolio tracking.
-15. Robinhood MCP.
-16. AI researcher.
-17. Learning engine.
-18. Market Memory.
-19. Mobile Dashboard.
+14. Stooq primary provider. Done in Milestone 7.2.
+15. Portfolio tracking.
+16. Robinhood MCP.
+17. AI researcher.
+18. Learning engine.
+19. Market Memory.
+20. Mobile Dashboard.

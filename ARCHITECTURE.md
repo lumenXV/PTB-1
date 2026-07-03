@@ -75,7 +75,9 @@ Responsibilities:
 
 - Define the internal market data provider interface.
 - Provide the current CSV provider.
+- Provide the primary Stooq live market data provider.
 - Provide the internal HTTP market provider foundation.
+- Keep the HTTP provider as legacy fallback.
 - Provide provider-neutral market data results.
 - Manage in-memory market data freshness.
 - Apply rate-limit cooldowns.

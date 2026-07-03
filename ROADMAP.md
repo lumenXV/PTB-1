@@ -349,6 +349,38 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Milestone 7.2: Stooq Primary Provider
+
+Status: complete.
+
+Goal: use a no-key Stooq provider as the primary live market data source while keeping the legacy HTTP provider as fallback.
+
+Implemented:
+
+- `StooqProvider` for no-key read-only CSV market data.
+- ProviderManager ordered providers:
+  - fresh cache
+  - StooqProvider
+  - HTTPMarketProvider fallback
+  - fail safely
+- Provider result reporting with provider used and attempted provider details.
+- Provider-check output showing provider used and attempts.
+- Live paper still trades only on fresh `MarketDataStatus.OK`.
+- Tests for Stooq success, malformed Stooq response, fallback, all-provider failure, and provider-check provider reporting.
+
+Out of scope:
+
+- Real trading.
+- Broker connections.
+- Robinhood.
+- Paid API keys.
+- New dependencies.
+- Strategy changes.
+- Paper-account behavior changes.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 8: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

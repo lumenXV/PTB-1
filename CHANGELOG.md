@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 7.2: Stooq Primary Provider
+
+- Added `StooqProvider` as the primary no-key read-only market data provider.
+- Kept the existing HTTP provider as legacy fallback.
+- Updated ProviderManager to support ordered provider attempts.
+- Added provider-used and attempted-provider reporting.
+- Updated provider-check output to show provider used and attempts.
+- Added tests for Stooq CSV success, malformed CSV, fallback to HTTP, all-provider failure, and provider-check reporting.
+- Preserved live paper fake-money-only behavior and fresh-OK-only trading rule.
+
 ## Milestone 7.1: Price Provider Recovery
 
 - Added `ProviderCheckResult` for safe market provider diagnostics.

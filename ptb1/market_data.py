@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import socket
 from dataclasses import dataclass
@@ -60,6 +62,8 @@ class ProviderCheckResult:
     reason: str
     retry_after: str | None
     checked_at: str
+    provider_used: str | None = None
+    attempted_providers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -75,6 +79,8 @@ class MarketDataResult:
     cache_status: str
     last_successful_update: datetime | None
     next_retry_time: datetime | None = None
+    provider_name: str | None = None
+    attempted_providers: tuple[str, ...] = ()
 
 
 class MarketDataProvider(Protocol, Generic[SourceT]):
@@ -98,6 +104,7 @@ class CSVProvider:
 
 
 HTTPFetcher = Callable[[MarketDataRequest], dict[str, Any]]
+StooqFetcher = Callable[[MarketDataRequest], str]
 
 
 class HTTPMarketProvider:
@@ -284,6 +291,106 @@ class HTTPMarketProvider:
             raise ValueError(f"Network failure loading market data for {request.symbol}.") from exc
 
 
+class StooqProvider:
+    """Load recent market data from Stooq's no-key CSV endpoint."""
+
+    name = "stooq"
+
+    def __init__(self, fetcher: StooqFetcher | None = None) -> None:
+        """Create a Stooq provider with an injectable fetcher."""
+        self.fetcher = fetcher or _fetch_stooq_csv
+
+    def load(self, request: MarketDataRequest) -> list[PriceBar]:
+        """Load recent Stooq CSV data and return validated price bars."""
+        _validate_request(request)
+        csv_text = self._fetch(request)
+        rows = _stooq_csv_to_rows(csv_text, request.symbol)
+        if not rows:
+            raise ValueError(f"Empty market data response for {request.symbol}.")
+        return [
+            create_price_bar(row=row, source=f"{self.name} market data for {request.symbol}", line_number=index)
+            for index, row in enumerate(rows, start=1)
+        ]
+
+    def check(self, request: MarketDataRequest) -> ProviderCheckResult:
+        """Run a safe Stooq diagnostic check for one symbol."""
+        checked_at = datetime.now().strftime("%H:%M:%S")
+        try:
+            bars = self.load(request)
+        except HTTPError as exc:
+            status = MarketDataStatus.RATE_LIMITED if exc.code == 429 else MarketDataStatus.ERROR
+            reason = "Provider rate limited the request." if exc.code == 429 else f"Provider returned HTTP {exc.code}."
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=status,
+                http_status=exc.code,
+                last_price=None,
+                reason=reason,
+                retry_after=exc.headers.get("Retry-After") if exc.headers else None,
+                checked_at=checked_at,
+                provider_used=None,
+                attempted_providers=(self.name,),
+            )
+        except TimeoutError:
+            return _provider_check_failure(self.name, request.symbol, "Timed out loading market data.", checked_at)
+        except OSError:
+            return _provider_check_failure(self.name, request.symbol, "Network failure loading market data.", checked_at)
+        except ValueError as exc:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.ERROR,
+                http_status=None,
+                last_price=None,
+                reason=str(exc),
+                retry_after=None,
+                checked_at=checked_at,
+                provider_used=None,
+                attempted_providers=(self.name,),
+            )
+        if not bars:
+            return ProviderCheckResult(
+                provider_name=self.name,
+                symbol=request.symbol.upper(),
+                status=MarketDataStatus.MISSING,
+                http_status=None,
+                last_price=None,
+                reason="Provider returned no market data.",
+                retry_after=None,
+                checked_at=checked_at,
+                provider_used=None,
+                attempted_providers=(self.name,),
+            )
+        return ProviderCheckResult(
+            provider_name=self.name,
+            symbol=bars[-1].symbol,
+            status=MarketDataStatus.OK,
+            http_status=None,
+            last_price=bars[-1].close,
+            reason="Fresh provider data received.",
+            retry_after=None,
+            checked_at=checked_at,
+            provider_used=self.name,
+            attempted_providers=(self.name,),
+        )
+
+    def connection_status(self) -> str:
+        """Return display-only provider readiness."""
+        return "Connected"
+
+    def _fetch(self, request: MarketDataRequest) -> str:
+        """Fetch Stooq CSV and normalize failures."""
+        try:
+            return self.fetcher(request)
+        except HTTPError:
+            raise
+        except TimeoutError as exc:
+            raise ValueError(f"Timed out loading market data for {request.symbol}.") from exc
+        except OSError as exc:
+            raise ValueError(f"Network failure loading market data for {request.symbol}.") from exc
+
+
 class MarketDataRepository:
     """In-memory market data cache and provider status store."""
 
@@ -325,7 +432,14 @@ class MarketDataRepository:
             )
         return result
 
-    def store_success(self, symbol: str, bars: list[PriceBar], provider_status: str) -> MarketDataResult:
+    def store_success(
+        self,
+        symbol: str,
+        bars: list[PriceBar],
+        provider_status: str,
+        provider_name: str | None = None,
+        attempted_providers: tuple[str, ...] = (),
+    ) -> MarketDataResult:
         """Store fresh validated bars and return an OK result."""
         normalized_symbol = _normalize_symbol(symbol)
         updated_at = self.now()
@@ -340,6 +454,8 @@ class MarketDataRepository:
             cache_status="FRESH",
             last_successful_update=updated_at,
             next_retry_time=None,
+            provider_name=provider_name,
+            attempted_providers=attempted_providers,
         )
         self._results[normalized_symbol] = result
         self._next_retry_times.pop(normalized_symbol, None)
@@ -352,6 +468,8 @@ class MarketDataRepository:
         message: str,
         provider_status: str,
         next_retry_time: datetime | None = None,
+        provider_name: str | None = None,
+        attempted_providers: tuple[str, ...] = (),
     ) -> MarketDataResult:
         """Store a non-OK provider status without inventing fresh data."""
         normalized_symbol = _normalize_symbol(symbol)
@@ -368,6 +486,8 @@ class MarketDataRepository:
             cache_status=cached.cache_status,
             last_successful_update=cached.last_successful_update,
             next_retry_time=next_retry_time or self._next_retry_times.get(normalized_symbol),
+            provider_name=provider_name,
+            attempted_providers=attempted_providers,
         )
         self._results[normalized_symbol] = result
         return result
@@ -395,11 +515,17 @@ class ProviderManager:
     def __init__(
         self,
         provider: HTTPMarketProvider | None = None,
+        providers: list[object] | None = None,
         repository: MarketDataRepository | None = None,
         cooldown_seconds: int = 60,
     ) -> None:
         """Create a manager over the available market data provider."""
-        self.provider = provider or HTTPMarketProvider()
+        if providers is not None:
+            self.providers = providers
+        elif provider is not None:
+            self.providers = [provider]
+        else:
+            self.providers = [StooqProvider(), HTTPMarketProvider()]
         self.repository = repository or MarketDataRepository()
         self.cooldown_seconds = cooldown_seconds
 
@@ -419,45 +545,103 @@ class ProviderManager:
                 message="Provider is cooling down after a rate limit.",
                 provider_status="RATE_LIMITED",
                 next_retry_time=next_retry,
+                attempted_providers=tuple(_provider_name(provider) for provider in self.providers),
             )
 
-        try:
-            bars = self.provider.load(request)
-        except ValueError as exc:
-            message = str(exc)
-            if "Rate limited" in message:
-                next_retry = self.repository.now() + timedelta(seconds=self.cooldown_seconds)
-                return self.repository.store_status(
-                    symbol=symbol,
-                    status=MarketDataStatus.RATE_LIMITED,
-                    message=message,
-                    provider_status="RATE_LIMITED",
-                    next_retry_time=next_retry,
-                )
-            return self.repository.store_status(
+        attempted: list[str] = []
+        failures: list[str] = []
+        rate_limited = False
+        for provider in self.providers:
+            provider_name = _provider_name(provider)
+            attempted.append(provider_name)
+            try:
+                bars = provider.load(request)
+            except ValueError as exc:
+                message = str(exc)
+                failures.append(f"{provider_name}: {message}")
+                if "Rate limited" in message:
+                    rate_limited = True
+                    next_retry = self.repository.now() + timedelta(seconds=self.cooldown_seconds)
+                    self.repository.store_status(
+                        symbol=symbol,
+                        status=MarketDataStatus.RATE_LIMITED,
+                        message=message,
+                        provider_status="RATE_LIMITED",
+                        next_retry_time=next_retry,
+                        provider_name=provider_name,
+                        attempted_providers=tuple(attempted),
+                    )
+                continue
+            if not bars:
+                failures.append(f"{provider_name}: Provider returned no market data.")
+                continue
+            return self.repository.store_success(
                 symbol=symbol,
-                status=MarketDataStatus.ERROR,
-                message=message,
-                provider_status="ERROR",
+                bars=bars,
+                provider_status=f"OK: {provider_name}",
+                provider_name=provider_name,
+                attempted_providers=tuple(attempted),
             )
 
-        if not bars:
-            return self.repository.store_status(
-                symbol=symbol,
-                status=MarketDataStatus.MISSING,
-                message="Provider returned no market data.",
-                provider_status="MISSING",
-            )
-
-        return self.repository.store_success(symbol=symbol, bars=bars, provider_status=self.provider.connection_status())
+        status = MarketDataStatus.RATE_LIMITED if rate_limited else MarketDataStatus.ERROR
+        provider_status = "RATE_LIMITED" if rate_limited else "ERROR"
+        message = "All providers failed: " + "; ".join(failures)
+        return self.repository.store_status(
+            symbol=symbol,
+            status=status,
+            message=message,
+            provider_status=provider_status,
+            provider_name=None,
+            attempted_providers=tuple(attempted),
+        )
 
     def cached_result(self, symbol: str) -> MarketDataResult:
         """Return repository state without calling a provider."""
         return self.repository.get_cached_result(symbol)
 
+    def check(self, request: MarketDataRequest) -> ProviderCheckResult:
+        """Run provider diagnostics in configured provider order."""
+        _validate_request(request)
+        attempted: list[str] = []
+        failures: list[str] = []
+        last_result: ProviderCheckResult | None = None
+        for provider in self.providers:
+            result = provider.check(request)
+            attempted.append(f"{result.provider_name}: {result.status.value} - {result.reason}")
+            if result.status is MarketDataStatus.OK:
+                return ProviderCheckResult(
+                    provider_name=result.provider_name,
+                    symbol=result.symbol,
+                    status=result.status,
+                    http_status=result.http_status,
+                    last_price=result.last_price,
+                    reason=result.reason,
+                    retry_after=result.retry_after,
+                    checked_at=result.checked_at,
+                    provider_used=result.provider_name,
+                    attempted_providers=tuple(attempted),
+                )
+            failures.append(f"{result.provider_name}: {result.status.value} - {result.reason}")
+            last_result = result
+
+        checked_at = datetime.now().strftime("%H:%M:%S")
+        status = last_result.status if last_result is not None else MarketDataStatus.ERROR
+        return ProviderCheckResult(
+            provider_name="provider-manager",
+            symbol=request.symbol.upper(),
+            status=status,
+            http_status=last_result.http_status if last_result else None,
+            last_price=None,
+            reason="All providers failed: " + "; ".join(failures),
+            retry_after=last_result.retry_after if last_result else None,
+            checked_at=last_result.checked_at if last_result else checked_at,
+            provider_used=None,
+            attempted_providers=tuple(attempted),
+        )
+
     def connection_status(self) -> str:
         """Return provider readiness for display."""
-        return self.provider.connection_status()
+        return ", ".join(f"{_provider_name(provider)}:{provider.connection_status()}" for provider in self.providers)
 
 
 def _validate_request(request: MarketDataRequest) -> None:
@@ -473,6 +657,11 @@ def _validate_request(request: MarketDataRequest) -> None:
 def _normalize_symbol(symbol: str) -> str:
     """Normalize a provider symbol."""
     return symbol.strip().upper()
+
+
+def _provider_name(provider: object) -> str:
+    """Return a display-safe provider name."""
+    return str(getattr(provider, "name", provider.__class__.__name__))
 
 
 def _quote_from_bars(bars: list[PriceBar], updated_at: datetime) -> MarketQuote | None:
@@ -528,6 +717,61 @@ def _fetch_chart_response_with_metadata(request: MarketDataRequest) -> tuple[dic
         return json.loads(body), response.status, retry_after
 
 
+def _fetch_stooq_csv(request: MarketDataRequest) -> str:
+    """Fetch daily CSV data from Stooq."""
+    symbol = _stooq_symbol(request.symbol)
+    params = urlencode({"s": symbol, "i": "d"})
+    url = f"https://stooq.com/q/d/l/?{params}"
+    http_request = Request(
+        url,
+        headers={
+            "User-Agent": "QMR.CO/0.7 (+https://github.com/lumenXV/PTB-1)",
+            "Accept": "text/csv, text/plain",
+        },
+    )
+    try:
+        with urlopen(http_request, timeout=10) as response:
+            return response.read().decode("utf-8")
+    except HTTPError:
+        raise
+    except socket.timeout as exc:
+        raise TimeoutError from exc
+    except URLError as exc:
+        raise OSError from exc
+
+
+def _stooq_symbol(symbol: str) -> str:
+    """Map a user symbol to Stooq's no-key US equity format."""
+    return f"{symbol.strip().lower()}.us"
+
+
+def _stooq_csv_to_rows(csv_text: str, symbol: str) -> list[dict[str, object]]:
+    """Convert Stooq CSV text into Historian-compatible rows."""
+    reader = csv.DictReader(io.StringIO(csv_text.strip()))
+    expected_fields = {"Date", "Open", "High", "Low", "Close", "Volume"}
+    if reader.fieldnames is None or not expected_fields.issubset(set(reader.fieldnames)):
+        raise ValueError(f"Malformed Stooq CSV response for {symbol}.")
+
+    rows: list[dict[str, object]] = []
+    for row in reader:
+        if not row or row.get("Date") in ("", None):
+            continue
+        rows.append(
+            {
+                "symbol": symbol.upper(),
+                "date": row["Date"],
+                "open": row["Open"],
+                "high": row["High"],
+                "low": row["Low"],
+                "close": row["Close"],
+                "volume": row["Volume"],
+            }
+        )
+    if not rows:
+        raise ValueError(f"Empty Stooq CSV response for {symbol}.")
+    return rows
+
+
 def _provider_check_failure(provider_name: str, symbol: str, reason: str, checked_at: str) -> ProviderCheckResult:
     """Build a safe provider diagnostic failure."""
     return ProviderCheckResult(
@@ -539,6 +783,8 @@ def _provider_check_failure(provider_name: str, symbol: str, reason: str, checke
         reason=reason,
         retry_after=None,
         checked_at=checked_at,
+        provider_used=None,
+        attempted_providers=(provider_name,),
     )
 
 

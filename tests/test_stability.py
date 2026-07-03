@@ -19,6 +19,7 @@ from ptb1.market_data import (
     MarketDataResult,
     MarketDataStatus,
     ProviderManager,
+    StooqProvider,
 )
 from ptb1.operations import OperationsStatus, Watchlist, render_market_intelligence, render_menu, render_status
 from ptb1.paper import PaperSession
@@ -259,6 +260,68 @@ class MarketDataProviderTests(unittest.TestCase):
         self.assertEqual(result.status, MarketDataStatus.ERROR)
         self.assertIsNone(result.http_status)
         self.assertIn("Network failure", result.reason)
+
+    def test_stooq_provider_converts_csv_response(self) -> None:
+        """StooqProvider should convert no-key CSV data into PriceBars."""
+        provider = StooqProvider(fetcher=lambda request: _fake_stooq_csv())
+
+        bars = provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(len(bars), 2)
+        self.assertEqual(bars[-1].symbol, "AMD")
+        self.assertEqual(bars[-1].close, 102.0)
+
+    def test_stooq_provider_rejects_malformed_response(self) -> None:
+        """StooqProvider should reject malformed CSV data."""
+        provider = StooqProvider(fetcher=lambda request: "No data")
+
+        with self.assertRaisesRegex(ValueError, "Malformed Stooq CSV"):
+            provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+    def test_provider_manager_falls_back_to_legacy_provider(self) -> None:
+        """ProviderManager should use legacy provider if Stooq fails."""
+        manager = ProviderManager(
+            providers=[
+                StooqProvider(fetcher=lambda request: "No data"),
+                HTTPMarketProvider(fetcher=lambda request: _fake_market_response()),
+            ]
+        )
+
+        result = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.OK)
+        self.assertEqual(result.provider_name, "http")
+        self.assertEqual(result.attempted_providers, ("stooq", "http"))
+
+    def test_provider_manager_fails_safely_when_all_providers_fail(self) -> None:
+        """ProviderManager should pause safely when all providers fail."""
+        manager = ProviderManager(
+            providers=[
+                StooqProvider(fetcher=lambda request: "No data"),
+                HTTPMarketProvider(fetcher=lambda request: {"chart": {"result": [], "error": None}}),
+            ]
+        )
+
+        result = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.ERROR)
+        self.assertIsNone(result.provider_name)
+        self.assertEqual(result.attempted_providers, ("stooq", "http"))
+
+    def test_provider_check_reports_provider_used(self) -> None:
+        """ProviderManager check should report the provider that succeeded."""
+        manager = ProviderManager(
+            providers=[
+                StooqProvider(fetcher=lambda request: _fake_stooq_csv()),
+                HTTPMarketProvider(fetcher=lambda request: _fake_market_response()),
+            ]
+        )
+
+        result = manager.check(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.OK)
+        self.assertEqual(result.provider_used, "stooq")
+        self.assertIn("stooq: OK", result.attempted_providers[0])
 
 
 class ProviderManagerTests(unittest.TestCase):
@@ -729,6 +792,17 @@ def _fake_market_response() -> dict[str, object]:
             ],
         }
     }
+
+
+def _fake_stooq_csv() -> str:
+    """Return a small Stooq-style CSV response."""
+    return "\n".join(
+        [
+            "Date,Open,High,Low,Close,Volume",
+            "2024-01-01,100.0,102.0,99.0,101.0,1000",
+            "2024-01-02,101.0,103.0,100.0,102.0,1100",
+        ]
+    )
 
 
 class _FixedSignalStrategy:
