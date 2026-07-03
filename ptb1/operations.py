@@ -7,7 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from ptb1.market_data import HTTPMarketProvider, MarketDataRequest, MarketQuote
+from ptb1.market_data import (
+    HTTPMarketProvider,
+    MarketDataRepository,
+    MarketDataRequest,
+    MarketDataResult,
+    MarketDataStatus,
+    ProviderManager,
+)
 from ptb1.strategies import get_available_strategies
 
 VERSION = "v0.6"
@@ -43,8 +50,7 @@ class WatchlistEntry:
     """One in-memory watchlist entry."""
 
     symbol: str
-    quote: MarketQuote | None = None
-    error: str | None = None
+    result: MarketDataResult | None = None
 
 
 class Watchlist:
@@ -68,15 +74,10 @@ class Watchlist:
         """Return watchlist entries in display order."""
         return [self._entries[symbol] for symbol in sorted(self._entries)]
 
-    def refresh(self, provider: HTTPMarketProvider) -> list[WatchlistEntry]:
+    def refresh(self, provider_manager: ProviderManager) -> list[WatchlistEntry]:
         """Refresh all watched symbols on demand."""
         for entry in self._entries.values():
-            try:
-                entry.quote = provider.quote(MarketDataRequest(symbol=entry.symbol, period="5d", interval="1d"))
-                entry.error = None
-            except ValueError as exc:
-                entry.quote = None
-                entry.error = str(exc)
+            entry.result = provider_manager.get_market_data(MarketDataRequest(symbol=entry.symbol, period="5d", interval="1d"))
         return self.entries()
 
 
@@ -101,7 +102,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
     """Display the Operations Center menu and launch existing actions."""
     started_at = datetime.now()
     watchlist = Watchlist()
-    market_provider = HTTPMarketProvider()
+    provider_manager = ProviderManager(provider=HTTPMarketProvider(), repository=MarketDataRepository())
     while True:
         print(render_status(build_status(started_at=started_at, data_dir=data_dir), watchlist))
         print(render_menu())
@@ -120,7 +121,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
         elif choice == "4":
             continue
         elif choice == "5":
-            _run_market_intelligence(watchlist, market_provider)
+            _run_market_intelligence(watchlist, provider_manager)
         elif choice == "6":
             print("Exiting QMR.CO.")
             return
@@ -223,16 +224,22 @@ def _render_watchlist_lines(watchlist: Watchlist | None) -> list[str]:
 
     lines = []
     for entry in entries:
-        if entry.quote is not None:
-            lines.append(
-                f"{entry.quote.symbol}: ${entry.quote.last_price:.2f} "
-                f"({entry.quote.daily_change:+.2f}, {entry.quote.daily_percent_change:+.2f}%) "
-                f"updated {entry.quote.last_updated}"
-            )
-        elif entry.error is not None:
-            lines.append(f"{entry.symbol}: {entry.error}")
-        else:
+        result = entry.result
+        if result is None:
             lines.append(f"{entry.symbol}: Waiting for refresh.")
+        elif result.status is MarketDataStatus.OK and result.quote is not None:
+            lines.append(
+                f"{result.quote.symbol}: ${result.quote.last_price:.2f}, "
+                f"{result.quote.daily_percent_change:+.2f}%, updated {result.quote.last_updated}"
+            )
+        elif result.status is MarketDataStatus.RATE_LIMITED:
+            lines.append(f"{entry.symbol}: RATE_LIMITED, {_format_next_retry(result)}, last update {_format_last_update(result)}")
+        elif result.status is MarketDataStatus.STALE:
+            lines.append(f"{entry.symbol}: STALE, last update {_format_last_update(result)}")
+        elif result.status is MarketDataStatus.ERROR:
+            lines.append(f"{entry.symbol}: ERROR, {result.message}")
+        else:
+            lines.append(f"{entry.symbol}: {result.status.value}, {result.message}")
     return lines
 
 
@@ -267,10 +274,10 @@ def _market_status() -> str:
     return "CLOSED"
 
 
-def _run_market_intelligence(watchlist: Watchlist, provider: HTTPMarketProvider) -> None:
+def _run_market_intelligence(watchlist: Watchlist, provider_manager: ProviderManager) -> None:
     """Run the read-only market intelligence menu."""
     while True:
-        print(render_market_intelligence(watchlist, provider.connection_status()))
+        print(render_market_intelligence(watchlist, provider_manager.connection_status()))
         try:
             choice = input("Select an option: ").strip()
         except EOFError:
@@ -292,7 +299,7 @@ def _run_market_intelligence(watchlist: Watchlist, provider: HTTPMarketProvider)
             if not watchlist.remove_symbol(symbol):
                 print(f"{symbol.upper()} was not on the watchlist.")
         elif choice == "3":
-            watchlist.refresh(provider)
+            watchlist.refresh(provider_manager)
         elif choice == "4":
             return
         else:
@@ -306,3 +313,18 @@ def _normalize_symbol(symbol: str) -> str:
     if not normalized_symbol:
         raise ValueError("Symbol is required.")
     return normalized_symbol
+
+
+def _format_last_update(result: MarketDataResult) -> str:
+    """Format a market data result update timestamp."""
+    if result.last_successful_update is None:
+        return "Never"
+    return result.last_successful_update.strftime("%H:%M:%S")
+
+
+def _format_next_retry(result: MarketDataResult) -> str:
+    """Format a market data result retry delay."""
+    if result.next_retry_time is None:
+        return "next retry unknown"
+    seconds = max(0, int((result.next_retry_time - datetime.now()).total_seconds()))
+    return f"next retry in {seconds}s"

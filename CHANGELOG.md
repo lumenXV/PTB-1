@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 6.7: Market Layer Reliability
+
+- Added provider-neutral market data statuses and result objects.
+- Added an in-memory market data repository with freshness tracking.
+- Added a ProviderManager with cache reuse and rate-limit cooldown handling.
+- Updated live paper so fake trades only run on fresh valid market data.
+- Updated live paper output with provider status, cache status, last successful update, and next retry time.
+- Updated Operations Center watchlist display to use repository-backed market status.
+- Added unit tests for fresh cache reuse, stale refresh, cooldown behavior, safe live-paper pauses, and cached watchlist status.
+
 ## Milestone 6.5: Live Paper Trading + Easier Startup
 
 - Added `ptb1/live_paper.py` for fake-money live paper sessions.

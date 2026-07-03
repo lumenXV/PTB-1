@@ -10,6 +10,7 @@ Milestone 5 adds an internal HTTP market data foundation without adding public m
 Milestone 5.1 adds a display-only Operations Center as the default platform entry point.
 Milestone 6 rebrands the user experience to QMR.CO and adds read-only Live Market Intelligence with an in-memory watchlist.
 Milestone 6.5 adds fake-money live paper trading and a simple PowerShell launcher.
+Milestone 6.7 adds market-layer reliability with in-memory caching, cooldowns, and no-trade safety for bad data.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -118,7 +119,7 @@ flowchart LR
 | --- | --- | --- |
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
 | Operations Center | `ptb1/operations.py` | Display platform status, menu options, and read-only watchlist state. |
-| Market Data | `ptb1/market_data.py` | Provide internal CSV and HTTP market data providers. |
+| Market Data | `ptb1/market_data.py` | Provide internal providers, cached market results, cooldowns, and provider-neutral status. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -143,9 +144,10 @@ No module should do another employee's job.
 8. Operations Center. Done in Milestone 5.1.
 9. Live Market Intelligence. Done in Milestone 6.
 10. Live paper trading. Done in Milestone 6.5.
-11. Portfolio tracking.
-12. Robinhood MCP.
-13. AI researcher.
-14. Learning engine.
-15. Market Memory.
-16. Mobile Dashboard.
+11. Market layer reliability. Done in Milestone 6.7.
+12. Portfolio tracking.
+13. Robinhood MCP.
+14. AI researcher.
+15. Learning engine.
+16. Market Memory.
+17. Mobile Dashboard.

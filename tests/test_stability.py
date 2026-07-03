@@ -5,13 +5,21 @@ from __future__ import annotations
 import subprocess
 import sys
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError
 
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
-from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataRequest
+from ptb1.market_data import (
+    CSVProvider,
+    HTTPMarketProvider,
+    MarketDataRepository,
+    MarketDataRequest,
+    MarketDataResult,
+    MarketDataStatus,
+    ProviderManager,
+)
 from ptb1.operations import OperationsStatus, Watchlist, render_market_intelligence, render_menu, render_status
 from ptb1.paper import PaperSession
 from ptb1.researcher import Signal
@@ -134,6 +142,89 @@ class MarketDataProviderTests(unittest.TestCase):
             provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
 
 
+class ProviderManagerTests(unittest.TestCase):
+    """Verify market data cache, cooldown, and provider status handling."""
+
+    def test_fresh_cache_avoids_provider_call(self) -> None:
+        """Fresh cached data should be reused without another provider call."""
+        now = _Clock(datetime(2024, 1, 1, 12, 0, 0))
+        provider = _CountingProvider(_fake_price_bars())
+        manager = ProviderManager(
+            provider=provider,
+            repository=MarketDataRepository(freshness_seconds=60, now=now),
+        )
+
+        first = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+        second = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(first.status, MarketDataStatus.OK)
+        self.assertEqual(second.status, MarketDataStatus.OK)
+        self.assertEqual(provider.calls, 1)
+
+    def test_stale_cache_triggers_provider_call(self) -> None:
+        """Stale cached data should trigger a provider refresh."""
+        now = _Clock(datetime(2024, 1, 1, 12, 0, 0))
+        provider = _CountingProvider(_fake_price_bars())
+        manager = ProviderManager(
+            provider=provider,
+            repository=MarketDataRepository(freshness_seconds=60, now=now),
+        )
+
+        manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+        now.advance(61)
+        result = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.OK)
+        self.assertEqual(provider.calls, 2)
+
+    def test_rate_limit_sets_cooldown(self) -> None:
+        """Rate limits should return RATE_LIMITED and set a retry time."""
+        now = _Clock(datetime(2024, 1, 1, 12, 0, 0))
+        manager = ProviderManager(
+            provider=_RateLimitProvider(),
+            repository=MarketDataRepository(now=now),
+            cooldown_seconds=60,
+        )
+
+        result = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(result.status, MarketDataStatus.RATE_LIMITED)
+        self.assertEqual(result.next_retry_time, datetime(2024, 1, 1, 12, 1, 0))
+
+    def test_cooldown_prevents_provider_call(self) -> None:
+        """A cooling-down symbol should not call the provider again."""
+        now = _Clock(datetime(2024, 1, 1, 12, 0, 0))
+        provider = _RateLimitProvider()
+        manager = ProviderManager(
+            provider=provider,
+            repository=MarketDataRepository(now=now),
+            cooldown_seconds=60,
+        )
+
+        manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+        manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(provider.calls, 1)
+
+    def test_cooldown_expiry_allows_retry(self) -> None:
+        """After cooldown expires, the provider may be called again."""
+        now = _Clock(datetime(2024, 1, 1, 12, 0, 0))
+        provider = _RateLimitThenSuccessProvider(_fake_price_bars())
+        manager = ProviderManager(
+            provider=provider,
+            repository=MarketDataRepository(now=now),
+            cooldown_seconds=60,
+        )
+
+        first = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+        now.advance(61)
+        second = manager.get_market_data(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
+
+        self.assertEqual(first.status, MarketDataStatus.RATE_LIMITED)
+        self.assertEqual(second.status, MarketDataStatus.OK)
+        self.assertEqual(provider.calls, 2)
+
+
 class CliStabilityTests(unittest.TestCase):
     """Verify that repeated CLI research runs remain stable."""
 
@@ -251,7 +342,7 @@ class LivePaperSessionTests(unittest.TestCase):
     def test_live_paper_limited_loop_can_buy(self) -> None:
         """Live paper should place a fake buy when strategy and risk allow it."""
         output: list[str] = []
-        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.OK)), RiskManager()).run(
             LivePaperConfig(
                 symbols=["AMD"],
                 strategy=_FixedSignalStrategy(Signal.BUY),
@@ -269,7 +360,7 @@ class LivePaperSessionTests(unittest.TestCase):
 
     def test_live_paper_can_sell_open_position(self) -> None:
         """Live paper should sell an existing fake position when strategy and risk allow it."""
-        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.OK)), RiskManager()).run(
             LivePaperConfig(
                 symbols=["AMD"],
                 strategy=_SequenceSignalStrategy([Signal.BUY, Signal.SELL]),
@@ -287,7 +378,7 @@ class LivePaperSessionTests(unittest.TestCase):
 
     def test_live_paper_hold_places_no_order(self) -> None:
         """Live paper should not place fake orders for HOLD signals."""
-        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars()), RiskManager()).run(
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.OK)), RiskManager()).run(
             LivePaperConfig(
                 symbols=["AMD"],
                 strategy=_FixedSignalStrategy(Signal.HOLD),
@@ -304,24 +395,7 @@ class LivePaperSessionTests(unittest.TestCase):
 
     def test_live_paper_provider_failure_does_not_trade(self) -> None:
         """Live paper should skip trading when provider data fails."""
-        result = LivePaperSession(_FailingLiveProvider(), RiskManager()).run(
-            LivePaperConfig(
-                symbols=["AMD"],
-                strategy=_FixedSignalStrategy(Signal.BUY),
-                starting_cash=10_000.0,
-                interval_seconds=0,
-                max_iterations=1,
-            ),
-            emit=lambda text: None,
-            sleep=lambda seconds: None,
-        )
-
-        self.assertEqual(len(result.account.order_log), 0)
-        self.assertIn("Provider failure", result.decisions[0].order_result)
-
-    def test_live_paper_rate_limit_pauses_without_trade(self) -> None:
-        """Live paper should pause and place no fake order when provider rate limits."""
-        result = LivePaperSession(_RateLimitedLiveProvider(), RiskManager()).run(
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.ERROR)), RiskManager()).run(
             LivePaperConfig(
                 symbols=["AMD"],
                 strategy=_FixedSignalStrategy(Signal.BUY),
@@ -335,11 +409,65 @@ class LivePaperSessionTests(unittest.TestCase):
 
         self.assertEqual(len(result.account.order_log), 0)
         self.assertEqual(result.decisions[0].risk_decision, "PAUSED")
-        self.assertIn("Rate limited", result.decisions[0].order_result)
+        self.assertIn("ERROR", result.decisions[0].order_result)
+
+    def test_live_paper_rate_limit_pauses_without_trade(self) -> None:
+        """Live paper should pause and place no fake order when provider rate limits."""
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.RATE_LIMITED)), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].risk_decision, "PAUSED")
+        self.assertIn("RATE_LIMITED", result.decisions[0].order_result)
+
+    def test_live_paper_missing_data_pauses_without_trade(self) -> None:
+        """Live paper should pause and place no fake order when data is missing."""
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.MISSING)), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].risk_decision, "PAUSED")
+        self.assertIn("MISSING", result.decisions[0].order_result)
+
+    def test_live_paper_stale_data_pauses_without_trade(self) -> None:
+        """Live paper should pause and place no fake order when cached data is stale."""
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.STALE)), RiskManager()).run(
+            LivePaperConfig(
+                symbols=["AMD"],
+                strategy=_FixedSignalStrategy(Signal.BUY),
+                starting_cash=10_000.0,
+                interval_seconds=0,
+                max_iterations=1,
+            ),
+            emit=lambda text: None,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertEqual(len(result.account.order_log), 0)
+        self.assertEqual(result.decisions[0].risk_decision, "PAUSED")
+        self.assertIn("STALE", result.decisions[0].order_result)
 
     def test_live_paper_short_history_holds_with_current_strategy(self) -> None:
         """Live paper should hold when the selected strategy has too little history."""
-        result = LivePaperSession(_FakeLiveProvider(_fake_price_bars(count=2)), RiskManager()).run(
+        result = LivePaperSession(_ResultLiveProvider(_market_result(MarketDataStatus.OK, bars=_fake_price_bars(count=2))), RiskManager()).run(
             LivePaperConfig(
                 symbols=["AMD"],
                 strategy=RsiStrategy(),
@@ -410,26 +538,29 @@ class OperationsCenterTests(unittest.TestCase):
         """Watchlist refresh should update watched prices on demand."""
         watchlist = Watchlist()
         watchlist.add_symbol("PTB")
-        provider = HTTPMarketProvider(fetcher=lambda request: _fake_market_response())
+        provider = ProviderManager(provider=HTTPMarketProvider(fetcher=lambda request: _fake_market_response()))
 
         entries = watchlist.refresh(provider)
 
-        self.assertEqual(entries[0].quote.symbol, "PTB")
-        self.assertEqual(entries[0].quote.last_price, 102.0)
-        self.assertEqual(entries[0].quote.daily_change, 1.0)
+        self.assertEqual(entries[0].result.quote.symbol, "PTB")
+        self.assertEqual(entries[0].result.quote.last_price, 102.0)
+        self.assertEqual(entries[0].result.quote.daily_change, 1.0)
 
     def test_watchlist_refresh_handles_invalid_symbol(self) -> None:
         """Watchlist refresh should keep invalid symbols display-only."""
         watchlist = Watchlist()
         watchlist.add_symbol("BAD")
-        provider = HTTPMarketProvider(
-            fetcher=lambda request: {"chart": {"result": None, "error": {"description": "Not Found"}}}
+        provider = ProviderManager(
+            provider=HTTPMarketProvider(
+                fetcher=lambda request: {"chart": {"result": None, "error": {"description": "Not Found"}}}
+            )
         )
 
         entries = watchlist.refresh(provider)
 
-        self.assertIsNone(entries[0].quote)
-        self.assertIn("Invalid market data symbol", entries[0].error)
+        self.assertIsNone(entries[0].result.quote)
+        self.assertEqual(entries[0].result.status, MarketDataStatus.ERROR)
+        self.assertIn("Invalid market data symbol", entries[0].result.message)
 
     def test_watchlist_refresh_handles_provider_failure(self) -> None:
         """Watchlist refresh should display provider failures without raising."""
@@ -438,10 +569,22 @@ class OperationsCenterTests(unittest.TestCase):
 
         watchlist = Watchlist()
         watchlist.add_symbol("PTB")
-        entries = watchlist.refresh(HTTPMarketProvider(fetcher=failing_fetcher))
+        entries = watchlist.refresh(ProviderManager(provider=HTTPMarketProvider(fetcher=failing_fetcher)))
 
-        self.assertIsNone(entries[0].quote)
-        self.assertIn("Network failure", entries[0].error)
+        self.assertIsNone(entries[0].result.quote)
+        self.assertIn("Network failure", entries[0].result.message)
+
+    def test_watchlist_displays_cached_status(self) -> None:
+        """Watchlist should display repository-backed status values."""
+        watchlist = Watchlist()
+        watchlist.add_symbol("AMD")
+        provider = ProviderManager(provider=_RateLimitProvider())
+
+        watchlist.refresh(provider)
+        output = render_market_intelligence(watchlist, provider.connection_status())
+
+        self.assertIn("AMD: RATE_LIMITED", output)
+        self.assertIn("last update Never", output)
 
 
 def _fake_market_response() -> dict[str, object]:
@@ -500,15 +643,33 @@ class _SequenceSignalStrategy:
         return signal
 
 
-class _FakeLiveProvider:
-    """Fake provider for deterministic live paper tests."""
+class _Clock:
+    """Controllable clock for market repository tests."""
+
+    def __init__(self, value: datetime) -> None:
+        """Create a clock at a fixed datetime."""
+        self.value = value
+
+    def __call__(self) -> datetime:
+        """Return the current test time."""
+        return self.value
+
+    def advance(self, seconds: int) -> None:
+        """Advance the test clock."""
+        self.value += timedelta(seconds=seconds)
+
+
+class _CountingProvider:
+    """Fake provider that counts calls and returns fixed bars."""
 
     def __init__(self, bars: list[PriceBar]) -> None:
         """Create the provider with fixed bars."""
         self.bars = bars
+        self.calls = 0
 
     def load(self, request: MarketDataRequest) -> list[PriceBar]:
         """Return fixed bars for the requested symbol."""
+        self.calls += 1
         return [
             PriceBar(
                 symbol=request.symbol,
@@ -522,21 +683,102 @@ class _FakeLiveProvider:
             for bar in self.bars
         ]
 
-
-class _FailingLiveProvider:
-    """Fake provider that simulates market data failure."""
-
-    def load(self, request: MarketDataRequest) -> list[PriceBar]:
-        """Raise a provider error."""
-        raise ValueError("Network failure loading market data for AMD.")
+    def connection_status(self) -> str:
+        """Return fake provider readiness."""
+        return "Connected"
 
 
-class _RateLimitedLiveProvider:
-    """Fake provider that simulates a provider rate limit."""
+class _RateLimitProvider:
+    """Fake provider that always rate limits."""
+
+    def __init__(self) -> None:
+        """Create a counting rate-limit provider."""
+        self.calls = 0
 
     def load(self, request: MarketDataRequest) -> list[PriceBar]:
         """Raise a provider rate-limit error."""
-        raise ValueError("Rate limited loading market data for AMD.")
+        self.calls += 1
+        raise ValueError(f"Rate limited loading market data for {request.symbol}.")
+
+    def connection_status(self) -> str:
+        """Return fake provider readiness."""
+        return "Connected"
+
+
+class _RateLimitThenSuccessProvider:
+    """Fake provider that rate limits once, then succeeds."""
+
+    def __init__(self, bars: list[PriceBar]) -> None:
+        """Create a provider with one rate limit before success."""
+        self.bars = bars
+        self.calls = 0
+
+    def load(self, request: MarketDataRequest) -> list[PriceBar]:
+        """Rate limit first, then return fixed bars."""
+        self.calls += 1
+        if self.calls == 1:
+            raise ValueError(f"Rate limited loading market data for {request.symbol}.")
+        return [
+            PriceBar(
+                symbol=request.symbol,
+                date=bar.date,
+                open=bar.open,
+                high=bar.high,
+                low=bar.low,
+                close=bar.close,
+                volume=bar.volume,
+            )
+            for bar in self.bars
+        ]
+
+    def connection_status(self) -> str:
+        """Return fake provider readiness."""
+        return "Connected"
+
+
+class _ResultLiveProvider:
+    """Fake managed provider for live paper tests."""
+
+    def __init__(self, result: MarketDataResult) -> None:
+        """Create the provider with a fixed managed result."""
+        self.result = result
+
+    def get_market_data(self, request: MarketDataRequest) -> MarketDataResult:
+        """Return a fixed managed result for live paper."""
+        return self.result
+
+
+def _market_result(status: MarketDataStatus, bars: list[PriceBar] | None = None) -> MarketDataResult:
+    """Build a managed market result for tests."""
+    result_bars = _fake_price_bars() if bars is None and status is MarketDataStatus.OK else bars or []
+    quote = None
+    if result_bars:
+        latest = result_bars[-1]
+        previous = result_bars[-2] if len(result_bars) > 1 else latest
+        change = latest.close - previous.close
+        quote = _TestQuote(latest.symbol, latest.close, change, (change / previous.close) * 100 if previous.close else 0.0)
+    return MarketDataResult(
+        symbol="AMD",
+        status=status,
+        bars=result_bars,
+        quote=quote,
+        message=f"{status.value} test market data.",
+        provider_status=status.value,
+        cache_status="FRESH" if status is MarketDataStatus.OK else status.value,
+        last_successful_update=datetime(2024, 1, 1, 12, 0, 0) if result_bars else None,
+    )
+
+
+class _TestQuote:
+    """Small quote object matching MarketQuote fields for tests."""
+
+    def __init__(self, symbol: str, last_price: float, daily_change: float, daily_percent_change: float) -> None:
+        """Create a test quote."""
+        self.symbol = symbol
+        self.last_price = last_price
+        self.daily_change = daily_change
+        self.daily_percent_change = daily_percent_change
+        self.last_updated = "12:00:00"
 
 
 def _fake_price_bars(count: int = 20) -> list[PriceBar]:

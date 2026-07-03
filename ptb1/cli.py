@@ -8,8 +8,7 @@ from pathlib import Path
 
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
-from ptb1.market_data import CSVProvider, MarketDataProvider
-from ptb1.market_data import HTTPMarketProvider
+from ptb1.market_data import CSVProvider, HTTPMarketProvider, MarketDataProvider, ProviderManager
 from ptb1.operations import OperationsActions, run_operations_center
 from ptb1.paper import PaperOrder, PaperPosition, PaperSession, PaperSessionResult, PaperTrade
 from ptb1.researcher import Signal, Strategy
@@ -256,7 +255,7 @@ def _run_live_paper_mode(
         names = ", ".join(strategy.name for strategy in get_available_strategies())
         raise ValueError(f"Live paper mode requires --strategy. Available strategies: {names}.")
     strategy = _find_strategy(strategy_name)
-    LivePaperSession(provider=HTTPMarketProvider(), risk_manager=RiskManager()).run(
+    LivePaperSession(provider=ProviderManager(provider=HTTPMarketProvider()), risk_manager=RiskManager()).run(
         LivePaperConfig(
             symbols=[symbol.upper() for symbol in symbols],
             strategy=strategy,

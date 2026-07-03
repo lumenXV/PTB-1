@@ -9,7 +9,7 @@ from typing import Callable, Protocol
 
 from ptb1.historian import PriceBar
 from ptb1.learning import explain_signal
-from ptb1.market_data import MarketDataRequest
+from ptb1.market_data import MarketDataRequest, MarketDataResult, MarketDataStatus
 from ptb1.paper import PaperAccount, PaperOrder, PaperPosition, PaperTrade
 from ptb1.researcher import Signal, Strategy
 from ptb1.risk_manager import RiskManager
@@ -18,8 +18,8 @@ from ptb1.risk_manager import RiskManager
 class LiveMarketProvider(Protocol):
     """Provider shape needed by the live paper loop."""
 
-    def load(self, request: MarketDataRequest) -> list[PriceBar]:
-        """Load recent market bars for one symbol."""
+    def get_market_data(self, request: MarketDataRequest) -> MarketDataResult:
+        """Return managed market data for one symbol."""
         ...
 
 
@@ -41,6 +41,10 @@ class LivePaperDecision:
     timestamp: str
     symbol: str
     last_price: float | None
+    provider_status: str
+    cache_status: str
+    last_successful_update: datetime | None
+    next_retry_time: datetime | None
     signal: Signal
     risk_decision: str
     order_result: str
@@ -129,33 +133,11 @@ class LivePaperSession:
     ) -> LivePaperDecision:
         """Process one fake-money decision for one symbol."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            history = self.provider.load(MarketDataRequest(symbol=symbol, period="3mo", interval="1d"))
-        except ValueError as exc:
-            risk_decision, order_result, explanation = _provider_error_decision(exc)
-            return _decision(
-                timestamp=timestamp,
-                symbol=symbol,
-                last_price=None,
-                signal=Signal.HOLD,
-                risk_decision=risk_decision,
-                order_result=order_result,
-                account=account,
-                explanation=explanation,
-            )
+        market_result = self.provider.get_market_data(MarketDataRequest(symbol=symbol, period="3mo", interval="1d"))
+        if market_result.status is not MarketDataStatus.OK:
+            return _paused_decision(timestamp, market_result, account)
 
-        if not history:
-            return _decision(
-                timestamp=timestamp,
-                symbol=symbol,
-                last_price=None,
-                signal=Signal.HOLD,
-                risk_decision="SKIPPED",
-                order_result="No price history returned.",
-                account=account,
-                explanation="No fake trade was placed because there was no validated price history.",
-            )
-
+        history = market_result.bars
         latest_bar = history[-1]
         account.positions = _mark_live_position(account.positions, latest_bar)
         position = account.positions.get(latest_bar.symbol)
@@ -166,6 +148,7 @@ class LivePaperSession:
                 timestamp=timestamp,
                 symbol=latest_bar.symbol,
                 last_price=latest_bar.close,
+                market_result=market_result,
                 signal=signal,
                 risk_decision="NOT NEEDED",
                 order_result="No fake order placed.",
@@ -182,6 +165,7 @@ class LivePaperSession:
                 timestamp=timestamp,
                 symbol=latest_bar.symbol,
                 last_price=latest_bar.close,
+                market_result=market_result,
                 signal=signal,
                 risk_decision="REJECTED",
                 order_result=reason,
@@ -198,6 +182,7 @@ class LivePaperSession:
                     timestamp=timestamp,
                     symbol=latest_bar.symbol,
                     last_price=latest_bar.close,
+                    market_result=market_result,
                     signal=signal,
                     risk_decision="REJECTED",
                     order_result=reason,
@@ -217,6 +202,7 @@ class LivePaperSession:
                 timestamp=timestamp,
                 symbol=latest_bar.symbol,
                 last_price=latest_bar.close,
+                market_result=market_result,
                 signal=signal,
                 risk_decision="APPROVED",
                 order_result=f"Filled fake BUY for {quantity} shares.",
@@ -249,6 +235,7 @@ class LivePaperSession:
                 timestamp=timestamp,
                 symbol=latest_bar.symbol,
                 last_price=latest_bar.close,
+                market_result=market_result,
                 signal=signal,
                 risk_decision="APPROVED",
                 order_result=f"Filled fake SELL for {position.quantity} shares.",
@@ -260,6 +247,7 @@ class LivePaperSession:
             timestamp=timestamp,
             symbol=latest_bar.symbol,
             last_price=latest_bar.close,
+            market_result=market_result,
             signal=Signal.HOLD,
             risk_decision="SKIPPED",
             order_result="No valid fake order was available.",
@@ -271,10 +259,16 @@ class LivePaperSession:
 def format_decision(decision: LivePaperDecision) -> str:
     """Format one live paper decision for CLI display."""
     last_price = "N/A" if decision.last_price is None else f"${decision.last_price:,.2f}"
+    last_update = "Never" if decision.last_successful_update is None else decision.last_successful_update.strftime("%H:%M:%S")
+    next_retry = "N/A" if decision.next_retry_time is None else decision.next_retry_time.strftime("%H:%M:%S")
     return "\n".join(
         [
             f"Timestamp: {decision.timestamp}",
             f"Symbol: {decision.symbol}",
+            f"Provider Status: {decision.provider_status}",
+            f"Cache Status: {decision.cache_status}",
+            f"Last Successful Update: {last_update}",
+            f"Next Retry: {next_retry}",
             f"Last Price: {last_price}",
             f"Signal: {decision.signal.value.upper()}",
             f"Risk Decision: {decision.risk_decision}",
@@ -323,6 +317,7 @@ def _decision(
     timestamp: str,
     symbol: str,
     last_price: float | None,
+    market_result: MarketDataResult,
     signal: Signal,
     risk_decision: str,
     order_result: str,
@@ -334,6 +329,10 @@ def _decision(
         timestamp=timestamp,
         symbol=symbol,
         last_price=last_price,
+        provider_status=market_result.provider_status,
+        cache_status=market_result.cache_status,
+        last_successful_update=market_result.last_successful_update,
+        next_retry_time=market_result.next_retry_time,
         signal=signal,
         risk_decision=risk_decision,
         order_result=order_result,
@@ -341,6 +340,21 @@ def _decision(
         portfolio_value=account.portfolio_value,
         open_positions=len(account.positions),
         explanation=explanation,
+    )
+
+
+def _paused_decision(timestamp: str, market_result: MarketDataResult, account: PaperAccount) -> LivePaperDecision:
+    """Build a no-trade decision for unsafe market data."""
+    return _decision(
+        timestamp=timestamp,
+        symbol=market_result.symbol,
+        last_price=market_result.quote.last_price if market_result.quote else None,
+        market_result=market_result,
+        signal=Signal.HOLD,
+        risk_decision="PAUSED",
+        order_result=f"{market_result.status.value}: {market_result.message} No fake trade placed.",
+        account=account,
+        explanation=f"Market data status is {market_result.status.value}. Live paper paused this decision and placed no fake trade.",
     )
 
 

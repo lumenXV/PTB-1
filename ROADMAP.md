@@ -257,6 +257,36 @@ Out of scope:
 - File persistence.
 - Background services.
 
+## Milestone 6.7: Market Layer Reliability
+
+Status: complete.
+
+Goal: make the market data layer reliable enough for fake-money live paper sessions.
+
+Implemented:
+
+- `MarketDataStatus` result states.
+- `MarketDataResult` provider-neutral result object.
+- In-memory `MarketDataRepository`.
+- `ProviderManager` above the raw HTTP provider.
+- Freshness checks with a default 60-second window.
+- Per-symbol cooldown after rate limits.
+- Cache reuse while market data is fresh.
+- Repository-backed Operations Center watchlist display.
+- Live paper no-trade safety for missing, stale, failed, malformed, rate-limited, or cooling-down data.
+
+Out of scope:
+
+- Real orders.
+- Broker connections.
+- Robinhood.
+- Provider persistence.
+- Database storage.
+- Background polling.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 7: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

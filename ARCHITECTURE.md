@@ -17,6 +17,7 @@ flowchart LR
     CLI["CLI Runner"] --> DatasetFiles["datasets/*.csv"]
     CLI --> Operations["Operations Center"]
     CLI --> MarketData["Market Data Provider"]
+    MarketData --> MarketRepo["Market Data Repository"]
     MarketData --> Historian["Historian"]
     CLI --> Strategies["Strategies"]
     Strategies --> Researcher["Researcher"]
@@ -74,6 +75,9 @@ Responsibilities:
 - Define the internal market data provider interface.
 - Provide the current CSV provider.
 - Provide the internal HTTP market provider foundation.
+- Provide provider-neutral market data results.
+- Manage in-memory market data freshness.
+- Apply rate-limit cooldowns.
 - Provide read-only quote data.
 - Delegate CSV loading to Historian.
 - Convert HTTP provider responses into Historian-compatible rows.
@@ -88,6 +92,7 @@ Must not:
 - Connect to brokers.
 - Place orders.
 - Expose provider-specific response objects outside the provider.
+- Label stale data as fresh.
 
 ### Operations Center
 
@@ -106,6 +111,7 @@ Responsibilities:
 - Render the menu.
 - Maintain the in-memory read-only watchlist.
 - Display live market intelligence.
+- Display repository-backed watchlist status.
 
 Must not:
 
@@ -222,11 +228,13 @@ Responsibilities:
 
 - Run fake-money live paper loops.
 - Request recent bars through the market data provider layer.
+- Use only fresh valid market data for fake orders.
 - Run one selected strategy against recent bars.
 - Ask Risk Manager before fake order fills.
 - Track fake account state for the running live paper session.
 - Log every live paper decision.
 - Display final session summary on completion or Ctrl+C.
+- Pause when market data is missing, stale, failed, malformed, rate-limited, or cooling down.
 
 Must not:
 
@@ -240,6 +248,7 @@ Must not:
 - Run in the background.
 - Change strategy signals.
 - Calculate Validator research metrics.
+- Trade from stale or invalid market data.
 
 ### Validator
 
