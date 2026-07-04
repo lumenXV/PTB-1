@@ -4,6 +4,15 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Internal Milestone 8: Unified Research Framework Foundation
+
+- Added `ptb1/assets.py` with `AssetType`, `Asset`, and asset factory helpers.
+- Added research-only crypto asset representation without wallets, exchanges, brokers, or live trading.
+- Added `ptb1/strategy_result.py` with `ResearchContext`, `StrategyResult`, and plain console formatting.
+- Added descriptive `StrategyResult` reason validation to protect explainability standards.
+- Added tests for asset creation, asset validation, research-only crypto representation, research context, strategy result validation, and formatting.
+- Preserved existing CLI, provider, paper trading, and strategy behavior.
+
 ## Milestone 7.3: Operations Center Polish
 
 - Updated the Operations Center version banner to `v0.7.3`.

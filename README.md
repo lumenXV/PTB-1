@@ -15,10 +15,13 @@ Milestone 7 adds a standard-library Security Skeleton for redaction, safe audit 
 Milestone 7.1 adds safe provider diagnostics and HTTP request hygiene for live price recovery.
 Milestone 7.2 makes Stooq the primary no-key live price provider with the existing HTTP provider as fallback.
 Milestone 7.3 polishes the Operations Center with watchlist validation, immediate add-time provider checks, clearer provider status display, and version `v0.7.3`.
+Internal Milestone 8 adds the Unified Research Framework foundation with shared asset primitives, `ResearchContext`, and explainable `StrategyResult` objects. This is additive architecture only and does not change current runtime behavior.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
 QMR.CO does not include Robinhood, AI, machine learning, live trading, optimization, or automation.
+
+Crypto assets can be represented for research foundation work only. QMR.CO does not include wallets, exchange trading, crypto broker integration, or live crypto trading.
 
 ## Project Brain
 
@@ -128,6 +131,8 @@ flowchart LR
     CLI --> Paper["Paper Trader\nfake-money execution only"]
     CLI --> LivePaper["Live Paper Trader\nfake-money market loop only"]
     CLI --> Security["Security Skeleton\nredaction + audit safety"]
+    CLI --> Assets["Assets\nmulti-asset research primitives"]
+    CLI --> StrategyResult["StrategyResult\nexplainable result shape"]
     Paper --> RiskManager
     LivePaper --> RiskManager
     LivePaper --> MarketData
@@ -145,6 +150,8 @@ flowchart LR
 | Historian | `ptb1/historian.py` | Load and validate historical market data. |
 | Operations Center | `ptb1/operations.py` | Display platform status, menu options, and read-only watchlist state. |
 | Market Data | `ptb1/market_data.py` | Provide internal providers, Stooq primary live data, HTTP fallback, cached market results, cooldowns, diagnostics, and provider-neutral status. |
+| Assets | `ptb1/assets.py` | Represent stocks, ETFs, crypto, and future asset categories for research. |
+| Strategy Result | `ptb1/strategy_result.py` | Define future explainable strategy results and research context. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -175,9 +182,10 @@ No module should do another employee's job.
 13. Price provider recovery. Done in Milestone 7.1.
 14. Stooq primary provider. Done in Milestone 7.2.
 15. Operations Center polish. Done in Milestone 7.3.
-16. Portfolio tracking.
-17. Robinhood MCP.
-18. AI researcher.
-19. Learning engine.
-20. Market Memory.
-21. Mobile Dashboard.
+16. Unified Research Framework foundation. Done in Internal Milestone 8.
+17. Portfolio tracking.
+18. Robinhood MCP.
+19. AI researcher.
+20. Learning engine.
+21. Market Memory.
+22. Mobile Dashboard.

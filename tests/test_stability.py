@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError
 
+from ptb1.assets import Asset, AssetType, create_crypto_asset, create_etf_asset, create_stock_asset
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import (
@@ -26,6 +27,7 @@ from ptb1.paper import PaperSession
 from ptb1.researcher import Signal
 from ptb1.risk_manager import RiskManager
 from ptb1.security import AuditLogger, ConfigValidator, PrivacyFilter, SecretManager, SecureStorage
+from ptb1.strategy_result import ResearchContext, StrategyResult, format_strategy_result
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
 
 
@@ -140,6 +142,127 @@ class SecuritySkeletonTests(unittest.TestCase):
         self.assertEqual(validated.privacy_logging, "redacted")
         self.assertEqual(validated.storage_mode, "protected")
         self.assertFalse(validated.live_trading_enabled)
+
+
+class UnifiedResearchFoundationTests(unittest.TestCase):
+    """Verify additive multi-asset research primitives."""
+
+    def test_asset_type_includes_current_and_future_categories(self) -> None:
+        """AssetType should support current assets and future placeholders."""
+        self.assertEqual(AssetType.STOCK.value, "stock")
+        self.assertEqual(AssetType.ETF.value, "etf")
+        self.assertEqual(AssetType.CRYPTO.value, "crypto")
+        self.assertEqual(AssetType.INDEX.value, "index")
+        self.assertEqual(AssetType.FOREX.value, "forex")
+        self.assertEqual(AssetType.COMMODITY.value, "commodity")
+        self.assertEqual(AssetType.UNKNOWN.value, "unknown")
+
+    def test_stock_asset_creation(self) -> None:
+        """Stock assets should normalize symbols without enabling special behavior."""
+        asset = create_stock_asset("amd", "Advanced Micro Devices")
+
+        self.assertEqual(asset.symbol, "AMD")
+        self.assertEqual(asset.display_name, "Advanced Micro Devices")
+        self.assertEqual(asset.asset_type, AssetType.STOCK)
+        self.assertEqual(asset.currency, "USD")
+        self.assertFalse(asset.research_only)
+
+    def test_etf_asset_creation(self) -> None:
+        """ETF assets should share the same research representation."""
+        asset = create_etf_asset("voo", "Vanguard S&P 500 ETF")
+
+        self.assertEqual(asset.symbol, "VOO")
+        self.assertEqual(asset.asset_type, AssetType.ETF)
+        self.assertEqual(asset.provider_symbol, "VOO")
+
+    def test_crypto_asset_creation_is_research_only(self) -> None:
+        """Crypto assets should be representable without enabling trading behavior."""
+        asset = create_crypto_asset("btc-usd", "Bitcoin")
+
+        self.assertEqual(asset.symbol, "BTC-USD")
+        self.assertEqual(asset.asset_type, AssetType.CRYPTO)
+        self.assertTrue(asset.research_only)
+        self.assertEqual(asset.exchange, "research-only")
+
+    def test_asset_rejects_empty_fields_and_invalid_type(self) -> None:
+        """Assets should fail fast when required metadata is missing."""
+        with self.assertRaisesRegex(ValueError, "Asset symbol"):
+            Asset("", "Missing Symbol", AssetType.STOCK, "USD", "US", "BAD")
+        with self.assertRaisesRegex(ValueError, "Asset type"):
+            Asset("AMD", "Advanced Micro Devices", "stock", "USD", "US", "AMD")  # type: ignore[arg-type]
+
+    def test_research_context_creation(self) -> None:
+        """ResearchContext should describe a future strategy evaluation input."""
+        asset = create_stock_asset("AMD", "Advanced Micro Devices")
+        context = ResearchContext(
+            asset=asset,
+            provider="csv",
+            dataset="sample_prices",
+            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+            timeframe="1d",
+        )
+
+        self.assertEqual(context.asset, asset)
+        self.assertEqual(context.provider, "csv")
+        self.assertEqual(context.timeframe, "1d")
+
+    def test_strategy_result_accepts_explainability_fields(self) -> None:
+        """StrategyResult should capture explainable strategy decisions."""
+        result = StrategyResult(
+            signal=Signal.HOLD,
+            reason="RSI is within the neutral range. No entry or exit criteria were met.",
+            strategy_name="RSI",
+            strategy_version="v1",
+            confidence=0.64,
+            indicators={"RSI": 54.3, "Buy threshold": 30, "Sell threshold": 70},
+            warnings=(),
+            metadata={"latency_ms": 12, "provider": "csv"},
+            asset_type=AssetType.STOCK,
+            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        )
+
+        self.assertEqual(result.signal, Signal.HOLD)
+        self.assertEqual(result.confidence, 0.64)
+        self.assertEqual(result.metadata["latency_ms"], 12)
+
+    def test_strategy_result_rejects_short_reason(self) -> None:
+        """StrategyResult reasons should uphold QMR.CO's explainability standard."""
+        with self.assertRaisesRegex(ValueError, "reason must be descriptive"):
+            StrategyResult(signal=Signal.HOLD, reason="Hold.")
+
+    def test_strategy_result_rejects_invalid_confidence(self) -> None:
+        """Confidence should remain optional but bounded when present."""
+        with self.assertRaisesRegex(ValueError, "confidence"):
+            StrategyResult(
+                signal=Signal.BUY,
+                reason="The strategy has enough context to explain this buy signal.",
+                confidence=1.5,
+            )
+
+    def test_format_strategy_result_plain_console_text(self) -> None:
+        """StrategyResult formatting should remain plain console text."""
+        result = StrategyResult(
+            signal=Signal.HOLD,
+            reason="RSI is within the neutral range. No entry or exit criteria were met.",
+            strategy_name="RSI",
+            strategy_version="v1",
+            confidence=0.64,
+            indicators={"RSI": 54.3, "Buy threshold": 30, "Sell threshold": 70},
+            warnings=("Research-only asset.",),
+            asset_type=AssetType.STOCK,
+            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        )
+
+        output = format_strategy_result(result)
+
+        self.assertIn("Strategy: RSI", output)
+        self.assertIn("Strategy Version: v1", output)
+        self.assertIn("Signal: HOLD", output)
+        self.assertIn("Confidence: 0.64", output)
+        self.assertIn("- RSI: 54.3", output)
+        self.assertIn("Reason: RSI is within the neutral range", output)
+        self.assertIn("- Research-only asset.", output)
+        self.assertIn("Asset Type: stock", output)
 
 
 class MarketDataProviderTests(unittest.TestCase):

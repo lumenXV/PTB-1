@@ -27,6 +27,8 @@ flowchart LR
     CLI --> Paper["Paper Trader"]
     CLI --> LivePaper["Live Paper Trader"]
     CLI --> Security["Security Skeleton"]
+    CLI --> Assets["Assets"]
+    CLI --> StrategyResult["StrategyResult"]
     Trader --> RiskManager["Risk Manager"]
     Paper --> RiskManager
     LivePaper --> RiskManager
@@ -122,6 +124,47 @@ Must not:
 - Connect to brokers.
 - Change strategy logic.
 - Change research, paper, or live-paper behavior.
+
+### Assets
+
+Module: `ptb1/assets.py`
+
+Responsibilities:
+
+- Represent stocks, ETFs, crypto, and future asset categories.
+- Store provider-neutral asset metadata.
+- Mark crypto assets as research-only by default.
+- Validate asset metadata at construction time.
+
+Must not:
+
+- Fetch market data.
+- Place trades.
+- Connect to wallets.
+- Connect to exchanges.
+- Connect to brokers.
+- Enable live crypto trading.
+- Change paper trading behavior.
+
+### Strategy Result
+
+Module: `ptb1/strategy_result.py`
+
+Responsibilities:
+
+- Define `ResearchContext` for future strategy evaluation context.
+- Define `StrategyResult` for explainable strategy decisions.
+- Validate strategy result confidence and descriptive reasons.
+- Format strategy results as plain console text.
+
+Must not:
+
+- Replace current strategy behavior yet.
+- Calculate indicators.
+- Execute trades.
+- Modify risk decisions.
+- Serialize UI or API responses.
+- Add templating or formatting dependencies.
 
 ### Operations Center
 

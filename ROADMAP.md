@@ -412,6 +412,40 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Internal Milestone 8: Unified Research Framework Foundation
+
+Status: complete.
+
+Goal: establish additive multi-asset and explainable-result primitives without changing runtime behavior.
+
+Implemented:
+
+- `ptb1/assets.py`.
+- Expanded `AssetType` enum for stock, ETF, crypto, index, forex, commodity, and unknown.
+- `Asset` model with provider-neutral metadata.
+- Factory helpers for stock, ETF, and research-only crypto assets.
+- `ptb1/strategy_result.py`.
+- `ResearchContext` for future strategy evaluation context.
+- `StrategyResult` with optional strategy name, strategy version, confidence, indicators, warnings, metadata, asset type, and timestamp.
+- Descriptive reason validation for `StrategyResult`.
+- Plain console `format_strategy_result()` helper.
+- Tests for asset creation, validation, crypto research-only representation, research context, StrategyResult validation, and formatting.
+
+Out of scope:
+
+- Strategy migration from `Signal` to `StrategyResult`.
+- Crypto market data providers.
+- Wallet support.
+- Broker connections.
+- Exchange trading.
+- Live crypto trading.
+- CLI behavior changes.
+- Provider behavior changes.
+- Paper trading behavior changes.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 8: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
