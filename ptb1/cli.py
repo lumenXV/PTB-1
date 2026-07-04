@@ -278,16 +278,21 @@ def _run_provider_check(symbols: list[str]) -> None:
     """Run a safe provider diagnostic check."""
     if not symbols:
         raise ValueError("Provider check requires --symbol.")
-    result = ProviderManager().check(MarketDataRequest(symbol=symbols[0], period="5d", interval="1d"))
-    _print_provider_check(result)
+    provider_manager = ProviderManager()
+    result = provider_manager.check(MarketDataRequest(symbol=symbols[0], period="5d", interval="1d"))
+    _print_provider_check(result, provider_manager)
 
 
-def _print_provider_check(result: ProviderCheckResult) -> None:
+def _print_provider_check(result: ProviderCheckResult, provider_manager: ProviderManager | None = None) -> None:
     """Print safe provider diagnostic output."""
     last_price = "N/A" if result.last_price is None else f"${result.last_price:,.2f}"
     http_status = "N/A" if result.http_status is None else str(result.http_status)
     retry_after = "N/A" if result.retry_after is None else result.retry_after
     print("QMR.CO Provider Check")
+    if provider_manager is not None:
+        print(f"Provider Manager: {provider_manager.connection_status()}")
+        print(f"Primary: {provider_manager.primary_provider_name()}")
+        print(f"Fallback: {provider_manager.fallback_provider_names()}")
     print(f"Provider: {result.provider_name}")
     print(f"Provider Used: {result.provider_used or 'N/A'}")
     print(f"Symbol: {result.symbol}")

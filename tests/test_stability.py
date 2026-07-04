@@ -275,7 +275,7 @@ class MarketDataProviderTests(unittest.TestCase):
         """StooqProvider should reject malformed CSV data."""
         provider = StooqProvider(fetcher=lambda request: "No data")
 
-        with self.assertRaisesRegex(ValueError, "Malformed Stooq CSV"):
+        with self.assertRaisesRegex(ValueError, "Stooq unavailable or malformed response"):
             provider.load(MarketDataRequest(symbol="AMD", period="5d", interval="1d"))
 
     def test_provider_manager_falls_back_to_legacy_provider(self) -> None:
@@ -416,17 +416,42 @@ class CliStabilityTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("QMR.CO", result.stdout)
-        self.assertIn("Version v0.6", result.stdout)
+        self.assertIn("Version v0.7.3", result.stdout)
         self.assertIn("Menu", result.stdout)
         self.assertIn("Market Intelligence", result.stdout)
         self.assertIn("Exiting QMR.CO.", result.stdout)
 
     def test_operations_center_keeps_watchlist_for_session(self) -> None:
         """A symbol added in Market Intelligence should appear on the main status screen."""
-        result = self._run_ptb1(stdin="5\n1\nAMD\n4\n6\n")
+        watchlist = Watchlist()
+        provider = ProviderManager(provider=HTTPMarketProvider(fetcher=lambda request: _fake_market_response()))
+
+        watchlist.add_validated_symbol("AMD", provider)
+        output = render_status(
+            OperationsStatus(
+                version="v0.7.3",
+                stable_branch="stable/v0.7.3",
+                runtime_seconds=0,
+                strategy_count=4,
+                dataset_count=3,
+                provider_manager_status="Connected",
+                primary_provider="http",
+                fallback_provider="None",
+                market_status="OPEN",
+                last_update="12:00:00",
+                mode="Idle",
+            ),
+            watchlist,
+        )
+
+        self.assertIn("Watching\n---------------------------------------\nAMD: $102.00", output)
+
+    def test_operations_center_rejects_invalid_menu_input_cleanly(self) -> None:
+        """Random menu input should not crash the Operations Center."""
+        result = self._run_ptb1(stdin="hello\n6\n")
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("Watching\n---------------------------------------\nAMD: Waiting for refresh.", result.stdout)
+        self.assertIn("Invalid selection. Enter 1, 2, 3, 4, 5, or 6.", result.stdout)
         self.assertIn("Exiting QMR.CO.", result.stdout)
 
     def test_repeated_single_dataset_runs_are_identical(self) -> None:
@@ -672,12 +697,14 @@ class OperationsCenterTests(unittest.TestCase):
         """Operations status should include platform and verification facts."""
         output = render_status(
             OperationsStatus(
-                version="v0.6",
-                stable_branch="stable/v0.6",
+                version="v0.7.3",
+                stable_branch="stable/v0.7.3",
                 runtime_seconds=0,
                 strategy_count=4,
                 dataset_count=3,
-                market_provider_status="Connected",
+                provider_manager_status="Connected",
+                primary_provider="stooq",
+                fallback_provider="http",
                 market_status="OPEN",
                 last_update="12:00:00",
                 mode="Idle",
@@ -687,6 +714,10 @@ class OperationsCenterTests(unittest.TestCase):
         self.assertIn("Research Engine", output)
         self.assertIn("Paper Trading", output)
         self.assertIn("Market Intelligence", output)
+        self.assertIn("Provider Manager", output)
+        self.assertIn("Primary", output)
+        self.assertIn("Fallback", output)
+        self.assertIn("Version v0.7.3", output)
         self.assertIn("Watching", output)
         self.assertIn("Runtime", output)
 
@@ -703,9 +734,12 @@ class OperationsCenterTests(unittest.TestCase):
 
     def test_empty_watchlist_display(self) -> None:
         """Market Intelligence should display an empty watchlist clearly."""
-        output = render_market_intelligence(Watchlist(), "Connected")
+        output = render_market_intelligence(Watchlist(), "Connected", "stooq", "http")
 
         self.assertIn("No symbols selected.", output)
+        self.assertIn("Provider Manager", output)
+        self.assertIn("Primary", output)
+        self.assertIn("Fallback", output)
 
     def test_watchlist_add_and_remove_symbol(self) -> None:
         """Watchlist should add and remove normalized symbols."""
@@ -714,6 +748,42 @@ class OperationsCenterTests(unittest.TestCase):
         watchlist.add_symbol("ptb")
         self.assertEqual([entry.symbol for entry in watchlist.entries()], ["PTB"])
         self.assertTrue(watchlist.remove_symbol("PTB"))
+        self.assertEqual(watchlist.entries(), [])
+
+    def test_watchlist_rejects_invalid_symbol_format(self) -> None:
+        """Clearly invalid symbols should not be added before provider validation."""
+        watchlist = Watchlist()
+
+        with self.assertRaisesRegex(ValueError, "Invalid symbol"):
+            watchlist.add_symbol("41WED")
+        with self.assertRaisesRegex(ValueError, "Invalid symbol"):
+            watchlist.add_symbol("AAAAAAASL")
+
+        self.assertEqual(watchlist.entries(), [])
+
+    def test_watchlist_add_validated_symbol_auto_fetches(self) -> None:
+        """Adding a valid symbol should fetch and store provider status immediately."""
+        watchlist = Watchlist()
+        provider = ProviderManager(provider=HTTPMarketProvider(fetcher=lambda request: _fake_market_response()))
+
+        result = watchlist.add_validated_symbol("AMD", provider)
+
+        self.assertEqual(result.status, MarketDataStatus.OK)
+        self.assertEqual([entry.symbol for entry in watchlist.entries()], ["AMD"])
+        self.assertEqual(watchlist.entries()[0].result.quote.last_price, 102.0)
+
+    def test_watchlist_rejects_provider_invalid_symbol(self) -> None:
+        """Provider-confirmed invalid symbols should not remain in the watchlist."""
+        watchlist = Watchlist()
+        provider = ProviderManager(
+            provider=HTTPMarketProvider(
+                fetcher=lambda request: {"chart": {"result": None, "error": {"description": "Not Found"}}}
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "Invalid symbol"):
+            watchlist.add_validated_symbol("BAD", provider)
+
         self.assertEqual(watchlist.entries(), [])
 
     def test_watchlist_refresh_updates_quote(self) -> None:
@@ -763,7 +833,12 @@ class OperationsCenterTests(unittest.TestCase):
         provider = ProviderManager(provider=_RateLimitProvider())
 
         watchlist.refresh(provider)
-        output = render_market_intelligence(watchlist, provider.connection_status())
+        output = render_market_intelligence(
+            watchlist,
+            provider.connection_status(),
+            provider.primary_provider_name(),
+            provider.fallback_provider_names(),
+        )
 
         self.assertIn("AMD: RATE_LIMITED", output)
         self.assertIn("last update Never", output)

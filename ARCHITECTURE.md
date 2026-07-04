@@ -141,6 +141,9 @@ Responsibilities:
 - Maintain the in-memory read-only watchlist.
 - Display live market intelligence.
 - Display repository-backed watchlist status.
+- Validate user-entered watchlist symbols before storing them.
+- Request one provider refresh when a valid symbol is added.
+- Display provider manager, primary provider, fallback provider, provider used, and provider attempts.
 
 Must not:
 

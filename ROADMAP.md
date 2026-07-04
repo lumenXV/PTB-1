@@ -381,6 +381,37 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
+## Milestone 7.3: Operations Center Polish
+
+Status: complete.
+
+Goal: polish QMR.CO's Operations Center and Market Intelligence flow without changing engine behavior.
+
+Implemented:
+
+- Version banner updated to `v0.7.3`.
+- Symbol validation before adding to the in-memory watchlist.
+- Add-symbol flow now fetches provider data immediately.
+- Clearly invalid symbols are rejected and not stored.
+- Invalid menu input now gives numbered guidance.
+- Provider display now separates Provider Manager, Primary, Fallback, Provider Used, and Attempts.
+- Stooq malformed responses are reported clearly while preserving HTTP fallback.
+- Tests for validation, auto-fetch, provider display, invalid input, and version output.
+
+Out of scope:
+
+- Real trading.
+- Broker connections.
+- Robinhood.
+- Paid API keys.
+- New dependencies.
+- Strategy changes.
+- Validator formula changes.
+- Paper-account behavior changes.
+- AI.
+- Machine learning.
+- Optimization.
+
 ## Milestone 8: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

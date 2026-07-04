@@ -641,7 +641,23 @@ class ProviderManager:
 
     def connection_status(self) -> str:
         """Return provider readiness for display."""
-        return ", ".join(f"{_provider_name(provider)}:{provider.connection_status()}" for provider in self.providers)
+        statuses = [provider.connection_status() for provider in self.providers]
+        if statuses and all(status == "Connected" for status in statuses):
+            return "Connected"
+        return ", ".join(f"{_provider_name(provider)}:{status}" for provider, status in zip(self.providers, statuses))
+
+    def primary_provider_name(self) -> str:
+        """Return the first configured provider name for display."""
+        if not self.providers:
+            return "N/A"
+        return _provider_name(self.providers[0])
+
+    def fallback_provider_names(self) -> str:
+        """Return fallback provider names for display."""
+        names = [_provider_name(provider) for provider in self.providers[1:]]
+        if not names:
+            return "None"
+        return ", ".join(names)
 
 
 def _validate_request(request: MarketDataRequest) -> None:
@@ -742,15 +758,22 @@ def _fetch_stooq_csv(request: MarketDataRequest) -> str:
 
 def _stooq_symbol(symbol: str) -> str:
     """Map a user symbol to Stooq's no-key US equity format."""
-    return f"{symbol.strip().lower()}.us"
+    normalized_symbol = symbol.strip().lower()
+    if "." in normalized_symbol:
+        return normalized_symbol
+    return f"{normalized_symbol}.us"
 
 
 def _stooq_csv_to_rows(csv_text: str, symbol: str) -> list[dict[str, object]]:
     """Convert Stooq CSV text into Historian-compatible rows."""
-    reader = csv.DictReader(io.StringIO(csv_text.strip()))
+    cleaned_csv = csv_text.strip()
+    if not cleaned_csv or "<html" in cleaned_csv.lower() or cleaned_csv.lower().startswith("<!doctype"):
+        raise ValueError(f"Stooq unavailable or malformed response for {symbol}.")
+
+    reader = csv.DictReader(io.StringIO(cleaned_csv))
     expected_fields = {"Date", "Open", "High", "Low", "Close", "Volume"}
     if reader.fieldnames is None or not expected_fields.issubset(set(reader.fieldnames)):
-        raise ValueError(f"Malformed Stooq CSV response for {symbol}.")
+        raise ValueError(f"Stooq unavailable or malformed response for {symbol}.")
 
     rows: list[dict[str, object]] = []
     for row in reader:

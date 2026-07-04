@@ -7,18 +7,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from ptb1.market_data import (
-    HTTPMarketProvider,
-    MarketDataRepository,
-    MarketDataRequest,
-    MarketDataResult,
-    MarketDataStatus,
-    ProviderManager,
-)
+from ptb1.market_data import MarketDataRepository, MarketDataRequest, MarketDataResult, MarketDataStatus, ProviderManager
 from ptb1.strategies import get_available_strategies
 
-VERSION = "v0.6"
-STABLE_BRANCH = "stable/v0.6"
+VERSION = "v0.7.3"
+STABLE_BRANCH = "stable/v0.7.3"
 
 
 @dataclass(frozen=True)
@@ -30,7 +23,9 @@ class OperationsStatus:
     runtime_seconds: int
     strategy_count: int
     dataset_count: int
-    market_provider_status: str
+    provider_manager_status: str
+    primary_provider: str
+    fallback_provider: str
     market_status: str
     last_update: str
     mode: str
@@ -65,6 +60,19 @@ class Watchlist:
         normalized_symbol = _normalize_symbol(symbol)
         self._entries.setdefault(normalized_symbol, WatchlistEntry(symbol=normalized_symbol))
 
+    def add_result(self, symbol: str, result: MarketDataResult) -> None:
+        """Add a symbol with its first provider result."""
+        normalized_symbol = _normalize_symbol(symbol)
+        self._entries[normalized_symbol] = WatchlistEntry(symbol=normalized_symbol, result=result)
+
+    def add_validated_symbol(self, symbol: str, provider_manager: ProviderManager) -> MarketDataResult:
+        """Validate, fetch, and add a watchlist symbol when safe."""
+        result = _validate_and_fetch_symbol(symbol, provider_manager)
+        if not _should_add_symbol(result):
+            raise ValueError("Invalid symbol. Not added.")
+        self.add_result(result.symbol, result)
+        return result
+
     def remove_symbol(self, symbol: str) -> bool:
         """Remove a symbol from the watchlist."""
         normalized_symbol = _normalize_symbol(symbol)
@@ -83,7 +91,7 @@ class Watchlist:
 
 def build_status(started_at: datetime, data_dir: Path, mode: str = "Idle") -> OperationsStatus:
     """Build the display-only platform status."""
-    market_provider = HTTPMarketProvider()
+    provider_manager = ProviderManager()
     runtime_seconds = max(0, int((datetime.now() - started_at).total_seconds()))
     return OperationsStatus(
         version=VERSION,
@@ -91,7 +99,9 @@ def build_status(started_at: datetime, data_dir: Path, mode: str = "Idle") -> Op
         runtime_seconds=runtime_seconds,
         strategy_count=len(get_available_strategies()),
         dataset_count=_count_datasets(data_dir),
-        market_provider_status=market_provider.connection_status(),
+        provider_manager_status=provider_manager.connection_status(),
+        primary_provider=provider_manager.primary_provider_name(),
+        fallback_provider=provider_manager.fallback_provider_names(),
         market_status=_market_status(),
         last_update=datetime.now().strftime("%H:%M:%S"),
         mode=mode,
@@ -102,7 +112,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
     """Display the Operations Center menu and launch existing actions."""
     started_at = datetime.now()
     watchlist = Watchlist()
-    provider_manager = ProviderManager(provider=HTTPMarketProvider(), repository=MarketDataRepository())
+    provider_manager = ProviderManager(repository=MarketDataRepository())
     while True:
         print(render_status(build_status(started_at=started_at, data_dir=data_dir), watchlist))
         print(render_menu())
@@ -126,7 +136,7 @@ def run_operations_center(data_dir: Path, actions: OperationsActions) -> None:
             print("Exiting QMR.CO.")
             return
         else:
-            print("Invalid selection.")
+            print("Invalid selection. Enter 1, 2, 3, 4, 5, or 6.")
         print()
 
 
@@ -149,7 +159,9 @@ def render_status(status: OperationsStatus, watchlist: Watchlist | None = None) 
             "",
             "Market Intelligence",
             "---------------------------------------",
-            _status_line("Provider", status.market_provider_status),
+            _status_line("Provider Manager", status.provider_manager_status),
+            _status_line("Primary", status.primary_provider),
+            _status_line("Fallback", status.fallback_provider),
             _status_line("Mode", "Read Only"),
             _status_line("Market Status", status.market_status),
             _status_line("Last Update", status.last_update),
@@ -191,12 +203,19 @@ def render_menu() -> str:
     )
 
 
-def render_market_intelligence(watchlist: Watchlist, provider_status: str) -> str:
+def render_market_intelligence(
+    watchlist: Watchlist,
+    provider_status: str,
+    primary_provider: str = "N/A",
+    fallback_provider: str = "None",
+) -> str:
     """Render the read-only market intelligence screen."""
     lines = [
         "Market Intelligence",
         "---------------------------------------",
-        _status_line("Provider", provider_status),
+        _status_line("Provider Manager", provider_status),
+        _status_line("Primary", primary_provider),
+        _status_line("Fallback", fallback_provider),
         _status_line("Mode", "Read Only"),
         "",
         "Watchlist",
@@ -240,6 +259,10 @@ def _render_watchlist_lines(watchlist: Watchlist | None) -> list[str]:
             lines.append(f"{entry.symbol}: ERROR, {result.message}")
         else:
             lines.append(f"{entry.symbol}: {result.status.value}, {result.message}")
+        if result is not None and result.provider_name is not None:
+            lines.append(f"  Provider Used: {result.provider_name}")
+        if result is not None and result.attempted_providers:
+            lines.append(f"  Attempts: {', '.join(result.attempted_providers)}")
     return lines
 
 
@@ -277,7 +300,14 @@ def _market_status() -> str:
 def _run_market_intelligence(watchlist: Watchlist, provider_manager: ProviderManager) -> None:
     """Run the read-only market intelligence menu."""
     while True:
-        print(render_market_intelligence(watchlist, provider_manager.connection_status()))
+        print(
+            render_market_intelligence(
+                watchlist,
+                provider_manager.connection_status(),
+                provider_manager.primary_provider_name(),
+                provider_manager.fallback_provider_names(),
+            )
+        )
         try:
             choice = input("Select an option: ").strip()
         except EOFError:
@@ -286,24 +316,33 @@ def _run_market_intelligence(watchlist: Watchlist, provider_manager: ProviderMan
         if choice == "1":
             try:
                 symbol = input("Symbol: ").strip()
-                watchlist.add_symbol(symbol)
+                print("Checking symbol...")
+                result = watchlist.add_validated_symbol(symbol, provider_manager)
+                print(_format_add_symbol_result(result))
             except (EOFError, ValueError) as exc:
-                if isinstance(exc, ValueError):
-                    print(f"Error: {exc}")
-                return
+                if isinstance(exc, EOFError):
+                    return
+                print(str(exc))
         elif choice == "2":
             try:
                 symbol = input("Symbol: ").strip()
+                removed = watchlist.remove_symbol(symbol)
             except EOFError:
                 return
-            if not watchlist.remove_symbol(symbol):
+            except ValueError as exc:
+                print(f"Error: {exc}")
+                print()
+                continue
+            if not removed:
                 print(f"{symbol.upper()} was not on the watchlist.")
         elif choice == "3":
             watchlist.refresh(provider_manager)
         elif choice == "4":
             return
         else:
-            print("Invalid selection.")
+            if _looks_like_symbol(choice):
+                print("Choose 1 to add a symbol.")
+            print("Invalid selection. Enter 1, 2, 3, or 4.")
         print()
 
 
@@ -312,7 +351,46 @@ def _normalize_symbol(symbol: str) -> str:
     normalized_symbol = symbol.strip().upper()
     if not normalized_symbol:
         raise ValueError("Symbol is required.")
+    if not _is_supported_symbol_format(normalized_symbol):
+        raise ValueError("Invalid symbol. Not added.")
     return normalized_symbol
+
+
+def _validate_and_fetch_symbol(symbol: str, provider_manager: ProviderManager) -> MarketDataResult:
+    """Validate a symbol and fetch its first provider result."""
+    normalized_symbol = _normalize_symbol(symbol)
+    return provider_manager.get_market_data(MarketDataRequest(symbol=normalized_symbol, period="5d", interval="1d"))
+
+
+def _should_add_symbol(result: MarketDataResult) -> bool:
+    """Return whether a provider result represents a watchable symbol."""
+    if result.status is MarketDataStatus.MISSING:
+        return False
+    if result.status is MarketDataStatus.ERROR and "Invalid market data symbol" in result.message:
+        return False
+    return True
+
+
+def _format_add_symbol_result(result: MarketDataResult) -> str:
+    """Format the add-symbol outcome after validation and fetch."""
+    if result.status is MarketDataStatus.OK and result.quote is not None:
+        return (
+            f"Added {result.symbol}: ${result.quote.last_price:.2f}, "
+            f"{result.quote.daily_percent_change:+.2f}%."
+        )
+    return f"Added {result.symbol}: {result.status.value}, {result.message}"
+
+
+def _is_supported_symbol_format(symbol: str) -> bool:
+    """Return whether a user-entered symbol is safe to ask providers about."""
+    compact_symbol = symbol.replace(".", "").replace("-", "")
+    return compact_symbol.isalpha() and 1 <= len(compact_symbol) <= 5
+
+
+def _looks_like_symbol(value: str) -> bool:
+    """Return whether menu input looks like a symbol typed in the wrong place."""
+    compact_value = value.strip().replace(".", "").replace("-", "")
+    return bool(compact_value) and compact_value.isalnum() and not value.strip().isdigit()
 
 
 def _format_last_update(result: MarketDataResult) -> str:

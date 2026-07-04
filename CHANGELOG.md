@@ -4,6 +4,17 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 7.3: Operations Center Polish
+
+- Updated the Operations Center version banner to `v0.7.3`.
+- Added validation before symbols are added to the in-memory watchlist.
+- Added immediate provider fetch after valid symbol add attempts.
+- Rejected clearly invalid symbols without storing them in the watchlist.
+- Improved invalid menu input guidance while keeping numbered menus.
+- Improved provider display with Provider Manager, Primary, Fallback, Provider Used, and Attempts fields.
+- Clarified malformed Stooq response handling while preserving HTTP fallback.
+- Added tests for symbol validation, auto-fetch add behavior, menu input guidance, provider display, and version output.
+
 ## Milestone 7.2: Stooq Primary Provider
 
 - Added `StooqProvider` as the primary no-key read-only market data provider.

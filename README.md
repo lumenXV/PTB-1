@@ -14,6 +14,7 @@ Milestone 6.7 adds market-layer reliability with in-memory caching, cooldowns, a
 Milestone 7 adds a standard-library Security Skeleton for redaction, safe audit logs, secret validation, config validation, and a compress-first protected storage placeholder.
 Milestone 7.1 adds safe provider diagnostics and HTTP request hygiene for live price recovery.
 Milestone 7.2 makes Stooq the primary no-key live price provider with the existing HTTP provider as fallback.
+Milestone 7.3 polishes the Operations Center with watchlist validation, immediate add-time provider checks, clearer provider status display, and version `v0.7.3`.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -173,9 +174,10 @@ No module should do another employee's job.
 12. Security Skeleton. Done in Milestone 7.
 13. Price provider recovery. Done in Milestone 7.1.
 14. Stooq primary provider. Done in Milestone 7.2.
-15. Portfolio tracking.
-16. Robinhood MCP.
-17. AI researcher.
-18. Learning engine.
-19. Market Memory.
-20. Mobile Dashboard.
+15. Operations Center polish. Done in Milestone 7.3.
+16. Portfolio tracking.
+17. Robinhood MCP.
+18. AI researcher.
+19. Learning engine.
+20. Market Memory.
+21. Mobile Dashboard.
