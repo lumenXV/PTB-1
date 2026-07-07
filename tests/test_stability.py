@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 from ptb1.assets import Asset, AssetType, create_crypto_asset, create_etf_asset, create_stock_asset
+from ptb1.cli import build_parser
+from ptb1.dashboard import DashboardState, build_dashboard_state, render_dashboard_html
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import (
@@ -263,6 +265,53 @@ class UnifiedResearchFoundationTests(unittest.TestCase):
         self.assertIn("Reason: RSI is within the neutral range", output)
         self.assertIn("- Research-only asset.", output)
         self.assertIn("Asset Type: stock", output)
+
+
+class DashboardShellTests(unittest.TestCase):
+    """Verify the local read-only dashboard shell renders safely."""
+
+    def test_dashboard_state_uses_safe_defaults(self) -> None:
+        """Dashboard state should not require active paper or live-paper sessions."""
+        state = build_dashboard_state()
+
+        self.assertEqual(state.version, "v0.7.3")
+        self.assertEqual(state.provider_manager_status, "Connected")
+        self.assertEqual(state.primary_provider, "stooq")
+        self.assertEqual(state.fallback_provider, "http")
+        self.assertEqual(state.watchlist_lines, ("No symbols selected.",))
+        self.assertIsNone(state.paper_summary)
+        self.assertIsNone(state.live_paper_summary)
+
+    def test_render_dashboard_html_contains_required_messages(self) -> None:
+        """Dashboard HTML should clearly communicate local read-only paper mode."""
+        state = DashboardState(
+            version="v0.7.3",
+            provider_manager_status="Connected",
+            primary_provider="stooq",
+            fallback_provider="http",
+            market_status="CLOSED",
+            last_update="12:00:00",
+            watchlist_lines=("No symbols selected.",),
+            paper_summary=None,
+            live_paper_summary=None,
+        )
+
+        output = render_dashboard_html(state)
+
+        self.assertIn("QMR.CO", output)
+        self.assertIn("PAPER TRADE ONLY", output)
+        self.assertIn("Provider Manager", output)
+        self.assertIn("No real trading", output)
+        self.assertIn("No active paper session.", output)
+        self.assertIn("No active live paper session.", output)
+        self.assertIn("Local Mode", output)
+        self.assertIn("READ ONLY", output)
+
+    def test_cli_parser_accepts_dashboard_flag(self) -> None:
+        """The dashboard flag should parse without starting the server."""
+        args = build_parser().parse_args(["--dashboard"])
+
+        self.assertTrue(args.dashboard)
 
 
 class MarketDataProviderTests(unittest.TestCase):

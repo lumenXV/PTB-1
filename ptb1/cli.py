@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from ptb1.dashboard import run_dashboard
 from ptb1.learning import GlossaryEntry, StrategyEducation, explain_signal, get_glossary_entries
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import CSVProvider, MarketDataProvider, MarketDataRequest, ProviderCheckResult, ProviderManager
@@ -68,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run a safe market data provider diagnostic for one symbol.",
     )
     parser.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="Start the local read-only QMR.CO dashboard.",
+    )
+    parser.add_argument(
         "--symbol",
         action="append",
         default=[],
@@ -111,6 +117,9 @@ def main(argv: list[str] | None = None) -> None:
             return
 
         args = build_parser().parse_args(raw_args)
+        if args.dashboard:
+            run_dashboard()
+            return
         if args.learning:
             _print_learning_mode()
             return

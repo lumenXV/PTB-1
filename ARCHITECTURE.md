@@ -29,6 +29,7 @@ flowchart LR
     CLI --> Security["Security Skeleton"]
     CLI --> Assets["Assets"]
     CLI --> StrategyResult["StrategyResult"]
+    CLI --> Dashboard["Local Dashboard"]
     Trader --> RiskManager["Risk Manager"]
     Paper --> RiskManager
     LivePaper --> RiskManager
@@ -165,6 +166,30 @@ Must not:
 - Modify risk decisions.
 - Serialize UI or API responses.
 - Add templating or formatting dependencies.
+
+### Dashboard
+
+Module: `ptb1/dashboard.py`
+
+Responsibilities:
+
+- Serve a localhost-only read-only dashboard shell.
+- Render dashboard HTML and CSS with standard library tools.
+- Display safe platform, provider, paper, live-paper, and trust placeholders.
+- Print the local dashboard URL at startup.
+
+Must not:
+
+- Publicly host QMR.CO.
+- Add accounts, login, payments, databases, or persistence.
+- Fetch market data.
+- Mutate watchlists.
+- Run strategies.
+- Start paper or live-paper sessions.
+- Place trades.
+- Connect to brokers.
+- Connect to Robinhood.
+- Change paper-account behavior.
 
 ### Operations Center
 

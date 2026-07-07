@@ -4,6 +4,15 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 8: Local Web Dashboard Shell
+
+- Added `ptb1/dashboard.py` for a localhost-only read-only QMR.CO dashboard shell.
+- Added `python -m ptb1 --dashboard`.
+- Rendered a dark premium dashboard with sidebar navigation, market overview, watchlist empty state, paper/live-paper empty states, provider status, and trust messaging.
+- Kept dashboard display-only with no market fetching, no watchlist mutation, no persistence, and no trading behavior.
+- Added tests for dashboard state, required HTML messages, and CLI parser support.
+- Preserved existing CLI, provider, research, strategy, and paper trading behavior.
+
 ## Internal Milestone 8: Unified Research Framework Foundation
 
 - Added `ptb1/assets.py` with `AssetType`, `Asset`, and asset factory helpers.

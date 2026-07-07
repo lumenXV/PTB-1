@@ -446,26 +446,62 @@ Out of scope:
 - Machine learning.
 - Optimization.
 
-## Milestone 8: Portfolio Engine
+## Milestone 8: Local Web Dashboard Shell
+
+Status: complete.
+
+Goal: start moving QMR.CO toward a local browser dashboard while preserving the existing engine architecture.
+
+Implemented:
+
+- `ptb1/dashboard.py`.
+- `DashboardState`.
+- `build_dashboard_state()`.
+- `render_dashboard_html()`.
+- `run_dashboard()`.
+- `python -m ptb1 --dashboard`.
+- Localhost-only standard-library HTTP server.
+- Dark QMR.CO dashboard shell with sidebar navigation, market overview, watchlist empty state, paper/live-paper empty states, provider status, and security/trust messaging.
+- Tests for dashboard state, required HTML messages, and CLI parser support.
+
+Out of scope:
+
+- Public hosting.
+- Accounts.
+- Login.
+- Payments.
+- Database.
+- Persistence.
+- Market fetching from the dashboard.
+- Watchlist mutation from the dashboard.
+- Real trading.
+- Broker connections.
+- Robinhood.
+- AI.
+- Machine learning.
+- Strategy changes.
+- Paper-account behavior changes.
+
+## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
 
-## Milestone 9: Robinhood MCP Integration
+## Milestone 10: Robinhood MCP Integration
 
 Integrate Robinhood through MCP only after paper trading proves the system is ready.
 
-## Milestone 10: AI Researcher
+## Milestone 11: AI Researcher
 
 Use AI to assist research only after strategy validation workflows are reliable.
 
-## Milestone 11: Learning Engine
+## Milestone 12: Learning Engine
 
 Learn from validated results without bypassing explainability or verification.
 
-## Milestone 12: Market Memory
+## Milestone 13: Market Memory
 
 Remember strategies, tests, failures, and compressed historical research summaries.
 
-## Milestone 13: Mobile Dashboard
+## Milestone 14: Mobile Dashboard
 
 Provide a focused dashboard for reviewing research state and results.
