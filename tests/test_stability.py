@@ -5,13 +5,23 @@ from __future__ import annotations
 import subprocess
 import sys
 import unittest
+import json
 from datetime import date, datetime, timedelta
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.request import urlopen
 from urllib.error import HTTPError
 
 from ptb1.assets import Asset, AssetType, create_crypto_asset, create_etf_asset, create_stock_asset
 from ptb1.cli import build_parser
-from ptb1.dashboard import DashboardState, build_dashboard_state, render_dashboard_html
+from ptb1.dashboard import (
+    DashboardApplication,
+    DashboardSession,
+    DashboardState,
+    build_dashboard_state,
+    create_dashboard_handler,
+    render_dashboard_html,
+)
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import (
@@ -21,6 +31,7 @@ from ptb1.market_data import (
     MarketDataRequest,
     MarketDataResult,
     MarketDataStatus,
+    MarketQuote,
     ProviderManager,
     StooqProvider,
 )
@@ -306,12 +317,146 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn("No active live paper session.", output)
         self.assertIn("Local Mode", output)
         self.assertIn("READ ONLY", output)
+        self.assertIn("data-section=\"dashboard\"", output)
+        self.assertIn("data-section=\"markets\"", output)
+        self.assertIn("data-section=\"watchlist\"", output)
+        self.assertIn("data-section=\"paper-trading\"", output)
+
+    def test_dashboard_html_has_no_trade_controls(self) -> None:
+        """The dashboard should not render trading action controls."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertNotIn(">Buy<", output)
+        self.assertNotIn(">Sell<", output)
+        self.assertNotIn("Start Trading", output)
+        self.assertNotIn("Connect Broker", output)
 
     def test_cli_parser_accepts_dashboard_flag(self) -> None:
         """The dashboard flag should parse without starting the server."""
         args = build_parser().parse_args(["--dashboard"])
 
         self.assertTrue(args.dashboard)
+
+    def test_status_api_returns_safe_json_payload(self) -> None:
+        """Status API should expose read-only platform facts only."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+
+        status, payload = app.handle_api_get("/api/status", {})
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["read_only"])
+        self.assertTrue(payload["paper_trade_only"])
+        self.assertFalse(payload["real_trading_enabled"])
+        self.assertEqual(payload["primary_provider"], "fake")
+        json.dumps(payload)
+
+    def test_markets_api_uses_provider_manager(self) -> None:
+        """Markets API should request data through the injected provider manager."""
+        provider = _FakeDashboardProvider()
+        app = DashboardApplication(provider_manager=provider)
+
+        status, payload = app.handle_api_get("/api/markets", {"symbols": ["AMD"]})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(provider.calls, ["AMD"])
+        self.assertEqual(payload["symbols"][0]["symbol"], "AMD")
+        self.assertEqual(payload["symbols"][0]["status"], "OK")
+        self.assertFalse(payload["trade_execution"])
+        json.dumps(payload)
+
+    def test_watchlist_add_remove_and_refresh_are_dashboard_local(self) -> None:
+        """Watchlist mutation should stay inside the dashboard session."""
+        provider = _FakeDashboardProvider()
+        session = DashboardSession()
+        app = DashboardApplication(provider_manager=provider, session=session)
+
+        added = app.add_watchlist_symbol("AMD")
+        watchlist = app.watchlist()
+        removed = app.remove_watchlist_symbol("AMD")
+        refreshed = app.refresh_watchlist()
+
+        self.assertTrue(added["added"])
+        self.assertEqual(watchlist["watchlist"][0]["symbol"], "AMD")
+        self.assertTrue(removed["removed"])
+        self.assertEqual(refreshed["watchlist"], [])
+        self.assertEqual(session.watchlist, {})
+
+    def test_watchlist_rejects_invalid_symbol_without_provider_call(self) -> None:
+        """Invalid symbols should not be stored or sent to providers."""
+        provider = _FakeDashboardProvider()
+        app = DashboardApplication(provider_manager=provider)
+
+        status, payload = app.handle_api_post("/api/watchlist/add", {"symbol": "41WED"})
+
+        self.assertEqual(status, 400)
+        self.assertIn("Invalid symbol", payload["error"])
+        self.assertEqual(provider.calls, [])
+        self.assertEqual(app.session.watchlist, {})
+
+    def test_api_routes_return_json_serializable_payloads(self) -> None:
+        """Every dashboard API route should return valid JSON data."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+
+        routes = [
+            app.handle_api_get("/api/status", {}),
+            app.handle_api_get("/api/markets", {"symbols": ["AMD,AAPL"]}),
+            app.handle_api_get("/api/watchlist", {}),
+            app.handle_api_get("/api/strategies", {}),
+            app.handle_api_get("/api/research", {}),
+            app.handle_api_get("/api/paper", {}),
+            app.handle_api_get("/api/security", {}),
+            app.handle_api_post("/api/watchlist/add", {"symbol": "AMD"}),
+            app.handle_api_post("/api/watchlist/refresh", {}),
+            app.handle_api_post("/api/watchlist/remove", {"symbol": "AMD"}),
+        ]
+
+        for status, payload in routes:
+            self.assertEqual(status, 200)
+            json.dumps(payload)
+
+    def test_paper_api_returns_inactive_default_state(self) -> None:
+        """Paper API should not imply a running account exists."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+
+        status, payload = app.handle_api_get("/api/paper", {})
+
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["active"])
+        self.assertIn("No active paper session", payload["message"])
+        self.assertIn("No active account", payload["default_cash_note"])
+
+    def test_security_api_contains_no_sensitive_values(self) -> None:
+        """Security API should not expose secrets or sensitive sample values."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+
+        status, payload = app.handle_api_get("/api/security", {})
+        serialized = json.dumps(payload)
+
+        self.assertEqual(status, 200)
+        self.assertNotIn("abc123", serialized)
+        self.assertNotIn("user@example.com", serialized)
+        self.assertNotIn("192.168.1.10", serialized)
+        self.assertFalse(payload["secrets_exposed"])
+        self.assertFalse(payload["tokens_exposed"])
+
+    def test_dashboard_handler_serves_status_json_without_hanging(self) -> None:
+        """A bounded local server should serve JSON and shut down cleanly."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            body = urlopen(f"http://localhost:{port}/api/status", timeout=2).read().decode("utf-8")
+            payload = json.loads(body)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload["primary_provider"], "fake")
 
 
 class MarketDataProviderTests(unittest.TestCase):
@@ -1014,6 +1159,62 @@ class OperationsCenterTests(unittest.TestCase):
 
         self.assertIn("AMD: RATE_LIMITED", output)
         self.assertIn("last update Never", output)
+
+
+class _FakeDashboardProvider:
+    """Small provider manager test double for dashboard tests."""
+
+    def __init__(self) -> None:
+        """Create the fake provider with call tracking."""
+        self.calls: list[str] = []
+
+    def connection_status(self) -> str:
+        """Return fake provider readiness."""
+        return "Connected"
+
+    def primary_provider_name(self) -> str:
+        """Return the fake primary provider name."""
+        return "fake"
+
+    def fallback_provider_names(self) -> str:
+        """Return fake fallback provider names."""
+        return "none"
+
+    def get_market_data(self, request: MarketDataRequest) -> MarketDataResult:
+        """Return a deterministic market data result."""
+        symbol = request.symbol.upper()
+        self.calls.append(symbol)
+        if symbol == "BAD":
+            return MarketDataResult(
+                symbol=symbol,
+                status=MarketDataStatus.ERROR,
+                bars=[],
+                quote=None,
+                message="Invalid market data symbol.",
+                provider_status="ERROR",
+                cache_status="MISSING",
+                last_successful_update=None,
+                provider_name=None,
+                attempted_providers=("fake",),
+            )
+        return MarketDataResult(
+            symbol=symbol,
+            status=MarketDataStatus.OK,
+            bars=[],
+            quote=MarketQuote(
+                symbol=symbol,
+                last_price=102.0,
+                daily_change=1.0,
+                daily_percent_change=0.99,
+                last_updated="12:00:00",
+            ),
+            message="Fresh fake market data.",
+            provider_status="OK: fake",
+            cache_status="FRESH",
+            last_successful_update=datetime(2024, 1, 1, 12, 0, 0),
+            provider_name="fake",
+            attempted_providers=("fake",),
+        )
 
 
 def _fake_market_response() -> dict[str, object]:

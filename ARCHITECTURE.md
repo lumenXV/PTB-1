@@ -173,18 +173,23 @@ Module: `ptb1/dashboard.py`
 
 Responsibilities:
 
-- Serve a localhost-only read-only dashboard shell.
-- Render dashboard HTML and CSS with standard library tools.
-- Display safe platform, provider, paper, live-paper, and trust placeholders.
+- Serve a localhost-only read-only dashboard.
+- Render dashboard HTML, CSS, and lightweight local JavaScript with standard library tools.
+- Display safe platform, provider, paper, live-paper, and trust state.
+- Provide safe local JSON routes for status, markets, watchlist, strategies, research, paper, and security.
+- Maintain dashboard-local in-memory watchlist state for the running server process.
+- Validate watchlist symbols before requesting provider data.
+- Use ProviderManager cache and cooldown behavior for market refreshes.
 - Print the local dashboard URL at startup.
 
 Must not:
 
 - Publicly host QMR.CO.
 - Add accounts, login, payments, databases, or persistence.
-- Fetch market data.
-- Mutate watchlists.
+- Fetch market data except through explicit read-only dashboard market/watchlist requests.
+- Mutate core engine watchlists or provider state.
 - Run strategies.
+- Run research.
 - Start paper or live-paper sessions.
 - Place trades.
 - Connect to brokers.

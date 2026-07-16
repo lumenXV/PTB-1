@@ -17,6 +17,7 @@ Milestone 7.2 makes Stooq the primary no-key live price provider with the existi
 Milestone 7.3 polishes the Operations Center with watchlist validation, immediate add-time provider checks, clearer provider status display, and version `v0.7.3`.
 Internal Milestone 8 adds the Unified Research Framework foundation with shared asset primitives, `ResearchContext`, and explainable `StrategyResult` objects. This is additive architecture only and does not change current runtime behavior.
 Milestone 8 adds a localhost-only read-only web dashboard shell for QMR.CO. It is a display surface only and does not fetch market data, mutate watchlists, or place trades.
+Milestone 8.1 makes the local dashboard functional with read-only JSON APIs, single-page navigation, market cards, and a dashboard-local in-memory watchlist. It still does not place trades, start sessions, persist data, or mutate core engine state.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -45,6 +46,23 @@ Launch the local read-only dashboard:
 ```powershell
 python -m ptb1 --dashboard
 ```
+
+Local dashboard API routes:
+
+```text
+GET  /api/status
+GET  /api/markets?symbols=AMD,AAPL,SPY
+GET  /api/watchlist
+POST /api/watchlist/add
+POST /api/watchlist/remove
+POST /api/watchlist/refresh
+GET  /api/strategies
+GET  /api/research
+GET  /api/paper
+GET  /api/security
+```
+
+The watchlist is dashboard-local memory only. It is not persisted and does not change trading, research, paper, or provider configuration.
 
 Launch the Operations Center with the PowerShell shortcut:
 
@@ -160,7 +178,7 @@ flowchart LR
 | Market Data | `ptb1/market_data.py` | Provide internal providers, Stooq primary live data, HTTP fallback, cached market results, cooldowns, diagnostics, and provider-neutral status. |
 | Assets | `ptb1/assets.py` | Represent stocks, ETFs, crypto, and future asset categories for research. |
 | Strategy Result | `ptb1/strategy_result.py` | Define future explainable strategy results and research context. |
-| Dashboard | `ptb1/dashboard.py` | Serve a localhost-only read-only dashboard shell. |
+| Dashboard | `ptb1/dashboard.py` | Serve a localhost-only read-only dashboard and safe local JSON APIs. |
 | Researcher | `ptb1/researcher.py` | Define strategy signals and strategy interface. |
 | Strategies | `ptb1/strategies.py` | Implement independent research strategies and static education metadata. |
 | Learning Mode | `ptb1/learning.py` | Provide read-only educational text and glossary entries. |
@@ -193,9 +211,10 @@ No module should do another employee's job.
 15. Operations Center polish. Done in Milestone 7.3.
 16. Unified Research Framework foundation. Done in Internal Milestone 8.
 17. Local Web Dashboard Shell. Done in Milestone 8.
-18. Portfolio tracking.
-19. Robinhood MCP.
-20. AI researcher.
-21. Learning engine.
-22. Market Memory.
-23. Mobile Dashboard.
+18. Functional read-only dashboard. Done in Milestone 8.1.
+19. Portfolio tracking.
+20. Robinhood MCP.
+21. AI researcher.
+22. Learning engine.
+23. Market Memory.
+24. Mobile Dashboard.

@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 8.1: Functional Read-Only Dashboard
+
+- Added dashboard-local in-memory watchlist state.
+- Added safe read-only JSON routes for status, markets, watchlist, strategies, research, paper, and security.
+- Added dashboard-local watchlist add, remove, and refresh actions without mutating core engine state.
+- Updated the dashboard UI with functional sidebar navigation and market/watchlist sections.
+- Kept all dashboard market refreshes behind existing ProviderManager cache and cooldown behavior.
+- Added tests for JSON API routes, watchlist validation, watchlist mutation, security payload safety, and bounded local server handling.
+- Preserved existing CLI, provider, research, strategy, paper trading, and live-paper behavior.
+
 ## Milestone 8: Local Web Dashboard Shell
 
 - Added `ptb1/dashboard.py` for a localhost-only read-only QMR.CO dashboard shell.

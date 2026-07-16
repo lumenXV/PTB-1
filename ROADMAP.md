@@ -482,6 +482,52 @@ Out of scope:
 - Strategy changes.
 - Paper-account behavior changes.
 
+## Milestone 8.1: Functional Read-Only Dashboard
+
+Status: complete.
+
+Goal: turn the local dashboard shell into a useful read-only interface connected to safe existing engine state.
+
+Implemented:
+
+- Dashboard-local `DashboardSession`.
+- Functional single-page sidebar navigation.
+- Safe JSON routes:
+  - `GET /api/status`
+  - `GET /api/markets`
+  - `GET /api/watchlist`
+  - `POST /api/watchlist/add`
+  - `POST /api/watchlist/remove`
+  - `POST /api/watchlist/refresh`
+  - `GET /api/strategies`
+  - `GET /api/research`
+  - `GET /api/paper`
+  - `GET /api/security`
+- Dashboard-local in-memory watchlist add, remove, and refresh.
+- Symbol validation before watchlist add.
+- Market cards with status, price, provider used, and update details.
+- Read-only paper and live-paper inactive states.
+- Security/trust API payload with non-sensitive principles only.
+- Tests for API payloads, watchlist behavior, provider usage, security safety, and bounded server handling.
+
+Out of scope:
+
+- Public hosting.
+- Accounts.
+- Login.
+- Payments.
+- Database.
+- Persistence.
+- Strategy execution from the dashboard.
+- Research execution from the dashboard.
+- Paper or live-paper lifecycle control.
+- Fake or real order placement.
+- Core engine state mutation.
+- Broker connections.
+- Robinhood.
+- AI.
+- Machine learning.
+
 ## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
