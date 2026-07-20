@@ -18,6 +18,7 @@ Milestone 7.3 polishes the Operations Center with watchlist validation, immediat
 Internal Milestone 8 adds the Unified Research Framework foundation with shared asset primitives, `ResearchContext`, and explainable `StrategyResult` objects. This is additive architecture only and does not change current runtime behavior.
 Milestone 8 adds a localhost-only read-only web dashboard shell for QMR.CO. It is a display surface only and does not fetch market data, mutate watchlists, or place trades.
 Milestone 8.1 makes the local dashboard functional with read-only JSON APIs, single-page navigation, market cards, and a dashboard-local in-memory watchlist. It still does not place trades, start sessions, persist data, or mutate core engine state.
+Milestone 8.2 cleans up the dashboard visual system with centralized design tokens, reusable render helpers, premium dark styling, responsive layout, clearer empty states, and consistent cards, tables, forms, badges, and safety messaging. It does not change dashboard APIs or engine behavior.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -212,9 +213,10 @@ No module should do another employee's job.
 16. Unified Research Framework foundation. Done in Internal Milestone 8.
 17. Local Web Dashboard Shell. Done in Milestone 8.
 18. Functional read-only dashboard. Done in Milestone 8.1.
-19. Portfolio tracking.
-20. Robinhood MCP.
-21. AI researcher.
-22. Learning engine.
-23. Market Memory.
-24. Mobile Dashboard.
+19. Dashboard visual system cleanup. Done in Milestone 8.2.
+20. Portfolio tracking.
+21. Robinhood MCP.
+22. AI researcher.
+23. Learning engine.
+24. Market Memory.
+25. Mobile Dashboard.

@@ -18,6 +18,10 @@ from ptb1.dashboard import (
     DashboardApplication,
     DashboardSession,
     DashboardState,
+    _render_card,
+    _render_empty_state,
+    _render_status_pill,
+    _render_table,
     build_dashboard_state,
     create_dashboard_handler,
     render_dashboard_html,
@@ -330,6 +334,33 @@ class DashboardShellTests(unittest.TestCase):
         self.assertNotIn(">Sell<", output)
         self.assertNotIn("Start Trading", output)
         self.assertNotIn("Connect Broker", output)
+
+    def test_dashboard_html_contains_visual_system_tokens(self) -> None:
+        """Dashboard HTML should include the centralized Milestone 8.2 visual tokens."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn('data-qmr-design-tokens="8.2"', output)
+        self.assertIn("--qmr-space-md", output)
+        self.assertIn("--qmr-radius-card", output)
+        self.assertIn("--qmr-blue", output)
+        self.assertIn("@media (max-width: 920px)", output)
+
+    def test_dashboard_render_helpers_produce_component_markup(self) -> None:
+        """Reusable visual helpers should render consistent dashboard components."""
+        card = _render_card("Status", "<p>Ready</p>", "wide")
+        empty_state = _render_empty_state("No data", "Nothing has loaded yet.", "empty-id")
+        status_pill = _render_status_pill("Mode", "READ ONLY", "mode-pill")
+        table = _render_table(("Name", "Value"), (("Provider", "Connected"),))
+
+        self.assertIn('class="card wide"', card)
+        self.assertIn("<h2>Status</h2>", card)
+        self.assertIn('class="empty-state" id="empty-id"', empty_state)
+        self.assertIn("No data", empty_state)
+        self.assertIn('class="status-pill ok" id="mode-pill"', status_pill)
+        self.assertIn("READ ONLY", status_pill)
+        self.assertIn("<table>", table)
+        self.assertIn("<th>Name</th>", table)
+        self.assertIn("<td>Connected</td>", table)
 
     def test_cli_parser_accepts_dashboard_flag(self) -> None:
         """The dashboard flag should parse without starting the server."""

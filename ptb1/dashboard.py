@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape
@@ -299,6 +298,219 @@ def build_dashboard_state(data_dir: Path | None = None) -> DashboardState:
     return DashboardApplication(data_dir=data_dir or Path("datasets")).build_state()
 
 
+
+def _render_design_tokens() -> str:
+    """Render centralized dashboard design tokens and component styles."""
+    return """<style data-qmr-design-tokens="8.2">
+    :root {
+      --qmr-bg: #05070d;
+      --qmr-bg-soft: #0a1020;
+      --qmr-panel: rgba(13, 22, 39, 0.84);
+      --qmr-panel-strong: rgba(15, 27, 49, 0.96);
+      --qmr-panel-muted: rgba(148, 163, 184, 0.08);
+      --qmr-border: rgba(148, 163, 184, 0.20);
+      --qmr-border-strong: rgba(88, 166, 255, 0.35);
+      --qmr-text: #f8fbff;
+      --qmr-text-muted: #9fb0c8;
+      --qmr-text-soft: #c9d6ea;
+      --qmr-blue: #38a4ff;
+      --qmr-blue-strong: #68c1ff;
+      --qmr-blue-dim: rgba(56, 164, 255, 0.16);
+      --qmr-danger: #ff5470;
+      --qmr-warning: #f7c948;
+      --qmr-success: #4ade80;
+      --qmr-space-xs: 0.35rem;
+      --qmr-space-sm: 0.65rem;
+      --qmr-space-md: 1rem;
+      --qmr-space-lg: 1.35rem;
+      --qmr-space-xl: 2rem;
+      --qmr-radius-card: 8px;
+      --qmr-radius-control: 8px;
+      --qmr-radius-pill: 999px;
+      --qmr-shadow-card: 0 20px 70px rgba(0, 0, 0, 0.35);
+      --qmr-shadow-glow: 0 0 38px rgba(56, 164, 255, 0.16);
+      --qmr-status-ok: var(--qmr-success);
+      --qmr-status-warning: var(--qmr-warning);
+      --qmr-status-danger: var(--qmr-danger);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--qmr-text);
+      background: var(--qmr-bg);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(56, 164, 255, 0.18), transparent 28rem),
+        linear-gradient(135deg, #04060c 0%, #07101e 48%, #05070d 100%);
+      color: var(--qmr-text);
+    }
+    button, input { font: inherit; }
+    .shell { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
+    aside {
+      border-right: 1px solid var(--qmr-border);
+      background: linear-gradient(180deg, rgba(8, 14, 26, 0.98), rgba(4, 8, 16, 0.96));
+      padding: var(--qmr-space-xl) var(--qmr-space-lg);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand { font-size: 1.8rem; font-weight: 800; letter-spacing: 0; }
+    .version { color: var(--qmr-text-muted); margin-top: var(--qmr-space-xs); margin-bottom: var(--qmr-space-xl); font-size: 0.9rem; }
+    nav { display: grid; gap: 0.45rem; }
+    nav button {
+      width: 100%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--qmr-text-muted);
+      text-align: left;
+      padding: 0.78rem 0.95rem;
+      border-radius: var(--qmr-radius-control);
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+    nav button:hover, nav button.active {
+      color: var(--qmr-text);
+      background: var(--qmr-blue-dim);
+      border-color: var(--qmr-border-strong);
+    }
+    main { padding: var(--qmr-space-xl); }
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--qmr-space-lg);
+      margin-bottom: var(--qmr-space-lg);
+      padding: 1.25rem;
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-card);
+      background: linear-gradient(135deg, rgba(12, 24, 43, 0.9), rgba(6, 10, 18, 0.86));
+      box-shadow: var(--qmr-shadow-card), var(--qmr-shadow-glow);
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 0.35rem; font-size: 2rem; }
+    h2 { font-size: 1rem; color: var(--qmr-text-soft); margin-bottom: 1rem; }
+    p { color: var(--qmr-text-muted); }
+    .badges { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-bottom: var(--qmr-space-xl); }
+    .badge, .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      border-radius: var(--qmr-radius-pill);
+      padding: 0.45rem 0.72rem;
+      font-size: 0.76rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border: 1px solid var(--qmr-border);
+      color: var(--qmr-text);
+      background: rgba(148, 163, 184, 0.08);
+    }
+    .badge.blue, .status-pill.ok { border-color: rgba(56, 164, 255, 0.42); background: rgba(56, 164, 255, 0.14); }
+    .badge.red, .status-pill.danger { border-color: rgba(255, 84, 112, 0.42); background: rgba(255, 84, 112, 0.12); }
+    .status-pill.warning { border-color: rgba(247, 201, 72, 0.42); background: rgba(247, 201, 72, 0.12); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--qmr-space-md); }
+    .card {
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-card);
+      background: var(--qmr-panel);
+      box-shadow: var(--qmr-shadow-card);
+      padding: 1.2rem;
+      min-height: 160px;
+      backdrop-filter: blur(18px);
+    }
+    .card.wide { grid-column: span 2; }
+    .card.full { grid-column: 1 / -1; }
+    .metric, .market-card {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      padding: 0.7rem 0;
+      color: var(--qmr-text-soft);
+    }
+    .metric span:first-child, .market-card .symbol { color: var(--qmr-text-muted); }
+    .market-card {
+      display: block;
+      margin-bottom: 0.75rem;
+      padding: 0.95rem;
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-card);
+      background: var(--qmr-panel-muted);
+    }
+    .market-card .symbol { color: var(--qmr-blue-strong); font-weight: 800; margin-bottom: 0.35rem; }
+    .empty, .empty-state {
+      border: 1px dashed rgba(148, 163, 184, 0.28);
+      border-radius: var(--qmr-radius-card);
+      background: rgba(148, 163, 184, 0.06);
+      color: var(--qmr-text-muted);
+      padding: 1rem;
+      line-height: 1.5;
+    }
+    .empty-state strong { display: block; color: var(--qmr-text-soft); margin-bottom: 0.25rem; }
+    .input-row, .form-row { display: flex; gap: 0.75rem; align-items: center; margin: 1rem 0; }
+    input {
+      min-width: 0;
+      flex: 1;
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-control);
+      background: rgba(2, 6, 14, 0.76);
+      color: var(--qmr-text);
+      padding: 0.78rem 0.85rem;
+    }
+    button.action {
+      border: 1px solid rgba(56, 164, 255, 0.5);
+      background: linear-gradient(135deg, rgba(56, 164, 255, 0.24), rgba(56, 164, 255, 0.10));
+      color: var(--qmr-text);
+      border-radius: var(--qmr-radius-control);
+      padding: 0.78rem 0.95rem;
+      cursor: pointer;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; color: var(--qmr-text-soft); }
+    th, td { text-align: left; padding: 0.72rem 0.65rem; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    th { color: var(--qmr-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    @media (max-width: 920px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--qmr-border); }
+      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      main { padding: 1rem; }
+      .topbar { flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .card.wide, .card.full { grid-column: auto; }
+      .input-row, .form-row { flex-direction: column; align-items: stretch; }
+    }
+  </style>"""
+
+
+def _render_card(title: str, content: str, variant: str = "") -> str:
+    """Render a dashboard card with consistent structure."""
+    classes = "card" if not variant else f"card {escape(variant)}"
+    return f'<article class="{classes}"><h2>{escape(title)}</h2>{content}</article>'
+
+
+def _render_empty_state(title: str, message: str, element_id: str | None = None) -> str:
+    """Render an honest empty state for inactive read-only sections."""
+    id_attribute = f' id="{escape(element_id)}"' if element_id else ""
+    return f'<div class="empty-state"{id_attribute}><strong>{escape(title)}</strong>{escape(message)}</div>'
+
+
+def _render_status_pill(label: str, status: str, element_id: str | None = None) -> str:
+    """Render a compact status pill without changing application state."""
+    status_class = "ok" if status.upper() in {"OK", "READY", "CONNECTED", "READ ONLY"} else "warning"
+    id_attribute = f' id="{escape(element_id)}"' if element_id else ""
+    return f'<span class="status-pill {status_class}"{id_attribute}>{escape(label)}: {escape(status)}</span>'
+
+
+def _render_table(headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]) -> str:
+    """Render a simple responsive table for dashboard facts."""
+    header_html = "".join(f"<th>{escape(header)}</th>" for header in headers)
+    row_html = "".join("<tr>" + "".join(f"<td>{escape(cell)}</td>" for cell in row) + "</tr>" for row in rows)
+    return f'<div class="table-wrap"><table><thead><tr>{header_html}</tr></thead><tbody>{row_html}</tbody></table></div>'
+
+
 def render_dashboard_html(state: DashboardState) -> str:
     """Render the local dashboard as standalone HTML, CSS, and small local JavaScript."""
     watchlist = "".join(f"<li>{escape(line)}</li>" for line in state.watchlist_lines)
@@ -310,163 +522,7 @@ def render_dashboard_html(state: DashboardState) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>QMR.CO Local Dashboard</title>
-  <style>
-    :root {{
-      color-scheme: dark;
-      --bg: #050b16;
-      --panel: rgba(12, 27, 45, 0.78);
-      --panel-strong: rgba(15, 35, 58, 0.94);
-      --border: rgba(88, 143, 203, 0.28);
-      --text: #edf6ff;
-      --muted: #91a7c2;
-      --blue: #32a7ff;
-      --blue-2: #78d4ff;
-      --blue-soft: rgba(50, 167, 255, 0.15);
-      --green: #4bd69a;
-      --red: #ff7082;
-      --shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      min-height: 100vh;
-      font-family: Arial, Helvetica, sans-serif;
-      background:
-        radial-gradient(circle at 20% 10%, rgba(50, 167, 255, 0.18), transparent 32%),
-        radial-gradient(circle at 82% 18%, rgba(120, 212, 255, 0.11), transparent 28%),
-        var(--bg);
-      color: var(--text);
-      letter-spacing: 0;
-    }}
-    .shell {{ display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }}
-    aside {{
-      border-right: 1px solid var(--border);
-      background: rgba(5, 13, 25, 0.88);
-      backdrop-filter: blur(18px);
-      padding: 24px 18px;
-    }}
-    .brand {{ font-size: 28px; font-weight: 800; margin-bottom: 4px; }}
-    .version {{ color: var(--muted); font-size: 13px; margin-bottom: 28px; }}
-    nav button {{
-      width: 100%;
-      display: block;
-      color: var(--muted);
-      text-align: left;
-      border: 0;
-      background: transparent;
-      padding: 12px 13px;
-      border-radius: 8px;
-      margin-bottom: 7px;
-      font: inherit;
-      cursor: pointer;
-    }}
-    nav button.active, nav button:hover {{
-      color: var(--text);
-      background: linear-gradient(90deg, var(--blue-soft), transparent);
-      box-shadow: inset 3px 0 0 var(--blue);
-    }}
-    main {{ padding: 26px; }}
-    .topbar {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 22px;
-    }}
-    .headline h1 {{ margin: 0 0 6px; font-size: 30px; }}
-    .headline p {{ margin: 0; color: var(--muted); }}
-    .status-pill {{
-      min-width: 280px;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      background: var(--panel);
-      border-radius: 999px;
-      padding: 11px 14px;
-      box-shadow: var(--shadow);
-    }}
-    .badges {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 24px; }}
-    .badge {{
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 7px 10px;
-      color: var(--muted);
-      background: rgba(12, 27, 45, 0.72);
-      font-size: 13px;
-      font-weight: 700;
-    }}
-    .badge.blue {{ color: var(--blue-2); background: var(--blue-soft); }}
-    .badge.red {{ color: var(--red); }}
-    .section {{ display: none; }}
-    .section.active {{ display: block; }}
-    .grid {{ display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }}
-    .card {{
-      grid-column: span 4;
-      min-height: 164px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      padding: 18px;
-    }}
-    .card.wide {{ grid-column: span 8; }}
-    .card.full {{ grid-column: span 12; }}
-    h2 {{ margin: 0 0 14px; font-size: 16px; }}
-    .metric {{
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(145, 166, 191, 0.16);
-      color: var(--muted);
-    }}
-    .metric:last-child {{ border-bottom: 0; }}
-    .metric strong {{ color: var(--text); text-align: right; }}
-    .empty {{
-      color: var(--muted);
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      background: rgba(16, 36, 59, 0.7);
-    }}
-    .input-row {{ display: flex; gap: 8px; margin: 12px 0; }}
-    input {{
-      flex: 1;
-      min-width: 0;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: rgba(6, 15, 28, 0.9);
-      color: var(--text);
-      padding: 11px 12px;
-    }}
-    .action {{
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      background: var(--blue-soft);
-      padding: 11px 12px;
-      cursor: pointer;
-    }}
-    .action.secondary {{ background: rgba(145, 166, 191, 0.1); color: var(--muted); }}
-    .market-card {{
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 13px;
-      margin: 10px 0;
-      background: var(--panel-strong);
-    }}
-    .market-card .symbol {{ font-weight: 800; color: var(--blue-2); }}
-    .market-card .price {{ font-size: 24px; margin: 6px 0; }}
-    ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}
-    li {{ margin: 8px 0; }}
-    footer {{ margin-top: 20px; color: var(--muted); font-size: 13px; }}
-    @media (max-width: 900px) {{
-      .shell {{ grid-template-columns: 1fr; }}
-      aside {{ border-right: 0; border-bottom: 1px solid var(--border); }}
-      .topbar {{ align-items: stretch; flex-direction: column; }}
-      .status-pill {{ min-width: 0; }}
-      .card, .card.wide {{ grid-column: span 12; }}
-    }}
-  </style>
+  {_render_design_tokens()}
 </head>
 <body>
   <div class="shell">

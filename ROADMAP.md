@@ -528,6 +528,29 @@ Out of scope:
 - AI.
 - Machine learning.
 
+
+## Milestone 8.2: Dashboard Visual System and Component Cleanup
+
+Status: complete.
+
+Goal: make the local dashboard visually coherent and easier to maintain without changing APIs, engine behavior, or trading behavior.
+
+Implemented:
+
+- Centralized dashboard design tokens in `ptb1/dashboard.py`.
+- Reusable render helpers for cards, empty states, status pills, and tables.
+- Premium dark QMR.CO styling with blue accents, polished sidebar, topbar, cards, forms, badges, tables, and empty states.
+- Responsive layout rules for narrow browser widths.
+- Tests for visual-system tokens, component helpers, required safety messaging, and absence of misleading trading controls.
+
+Out of scope:
+
+- New dashboard APIs.
+- EngineFacade or PaperSessionController.
+- Browser client IDs, cookies, accounts, persistence, or database storage.
+- Trading controls.
+- Provider, strategy, research, paper, or live-paper behavior changes.
+
 ## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

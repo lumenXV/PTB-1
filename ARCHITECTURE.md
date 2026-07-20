@@ -175,6 +175,8 @@ Responsibilities:
 
 - Serve a localhost-only read-only dashboard.
 - Render dashboard HTML, CSS, and lightweight local JavaScript with standard library tools.
+- Own centralized local dashboard design tokens and reusable rendering helpers.
+- Keep visual structure separate from API and engine behavior.
 - Display safe platform, provider, paper, live-paper, and trust state.
 - Provide safe local JSON routes for status, markets, watchlist, strategies, research, paper, and security.
 - Maintain dashboard-local in-memory watchlist state for the running server process.

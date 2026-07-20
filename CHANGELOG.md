@@ -4,6 +4,14 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 8.2: Dashboard Visual System and Component Cleanup
+
+- Added centralized dashboard design tokens inside `ptb1/dashboard.py`.
+- Added reusable render helpers for cards, empty states, status pills, and tables.
+- Polished the local dashboard with premium dark QMR.CO styling, blue accents, improved sidebar, topbar, cards, forms, badges, tables, empty states, and responsive layout rules.
+- Added tests for visual-system tokens and reusable dashboard component helpers.
+- Preserved existing dashboard APIs, CLI behavior, provider behavior, research, strategy, paper trading, and live-paper behavior.
+
 ## Milestone 8.1: Functional Read-Only Dashboard
 
 - Added dashboard-local in-memory watchlist state.
