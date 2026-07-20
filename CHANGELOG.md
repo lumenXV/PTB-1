@@ -4,6 +4,12 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Dashboard Visual Reference Pass
+
+- Restyled the local dashboard to more closely match the provided premium QMR.CO dark research-console reference.
+- Added the public-style top navigation, app sidebar, search/status row, market posture card, KPI strip, market brief cards, pulse chart, focus asset card, watchlist panel, and risk/strategy summary panels.
+- Preserved local fake-money safety labels, existing dashboard APIs, EngineFacade access, and no-real-trading behavior.
+
 ## Accelerated Vertical Slice: Website-Operated Fake-Money Market Scanner
 
 - Added immutable paper scanner snapshot contracts in `ptb1/snapshots.py`.

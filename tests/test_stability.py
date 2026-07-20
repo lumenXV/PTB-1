@@ -537,6 +537,18 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn("<th>Name</th>", table)
         self.assertIn("<td>Connected</td>", table)
 
+    def test_dashboard_html_contains_reference_style_landmarks(self) -> None:
+        """Dashboard should render the premium research-console visual landmarks."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn("Paper Research Account", output)
+        self.assertIn("Start researching", output)
+        self.assertIn("Market Posture", output)
+        self.assertIn("Daily Market Brief", output)
+        self.assertIn("Market Pulse", output)
+        self.assertIn("Names in focus", output)
+        self.assertIn("Strategy Agreement", output)
+
     def test_cli_parser_accepts_dashboard_flag(self) -> None:
         """The dashboard flag should parse without starting the server."""
         args = build_parser().parse_args(["--dashboard"])

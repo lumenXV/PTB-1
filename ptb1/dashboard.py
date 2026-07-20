@@ -483,15 +483,122 @@ def _render_design_tokens() -> str:
     table { width: 100%; border-collapse: collapse; color: var(--qmr-text-soft); }
     th, td { text-align: left; padding: 0.72rem 0.65rem; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
     th { color: var(--qmr-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .app-header {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0 2rem;
+      border-bottom: 1px solid rgba(30, 41, 59, 0.78);
+      background: rgba(3, 7, 12, 0.96);
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      backdrop-filter: blur(20px);
+    }
+    .brand-lockup { display: inline-flex; align-items: center; gap: 0.65rem; font-weight: 900; }
+    .logo-mark {
+      width: 2rem;
+      height: 2rem;
+      display: inline-grid;
+      place-items: center;
+      border: 2px solid var(--qmr-blue);
+      border-radius: 50%;
+      color: var(--qmr-blue-strong);
+      box-shadow: 0 0 22px rgba(56, 164, 255, 0.38);
+      font-weight: 900;
+    }
+    .public-nav, .header-actions { display: inline-flex; align-items: center; gap: 1.8rem; }
+    .public-nav span { color: var(--qmr-text-muted); font-size: 0.86rem; }
+    .header-actions .ghost-link { color: var(--qmr-text-soft); font-weight: 700; }
+    .primary-cta {
+      border: 1px solid rgba(56, 164, 255, 0.8);
+      background: linear-gradient(135deg, #1397ff, #0472df);
+      color: white;
+      border-radius: var(--qmr-radius-control);
+      padding: 0.82rem 1.15rem;
+      font-weight: 900;
+      box-shadow: 0 14px 32px rgba(19, 151, 255, 0.25);
+    }
+    .shell { min-height: calc(100vh - 64px); }
+    .sidebar-kicker {
+      color: var(--qmr-text-muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 0.7rem;
+    }
+    .sidebar-footer { position: absolute; bottom: 1.4rem; color: var(--qmr-text-muted); font-size: 0.9rem; }
+    .command-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .search-box {
+      max-width: 560px;
+      width: 100%;
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-control);
+      background: rgba(12, 20, 31, 0.9);
+      color: var(--qmr-text-muted);
+      padding: 0.9rem 1rem;
+    }
+    .market-dot { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--qmr-text-muted); font-size: 0.8rem; text-transform: uppercase; }
+    .market-dot::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--qmr-success); box-shadow: 0 0 16px var(--qmr-success); }
+    .hero-line { margin-bottom: 1rem; }
+    .hero-line h1 { font-size: 1.7rem; margin: 0.55rem 0 1.25rem; }
+    .hero-line h1 span { color: var(--qmr-text-muted); font-weight: 600; }
+    .experience-toggle { margin-left: auto; display: inline-flex; gap: 0.25rem; border: 1px solid var(--qmr-border); border-radius: var(--qmr-radius-control); padding: 0.25rem; background: rgba(12, 20, 31, 0.78); }
+    .experience-toggle span { padding: 0.45rem 0.65rem; color: var(--qmr-text-muted); border-radius: 6px; font-size: 0.75rem; }
+    .experience-toggle .active { color: var(--qmr-blue-strong); background: rgba(56, 164, 255, 0.14); }
+    .posture-card {
+      border: 1px solid var(--qmr-border);
+      border-radius: var(--qmr-radius-card);
+      background: linear-gradient(180deg, rgba(13, 22, 36, 0.96), rgba(7, 13, 23, 0.96));
+      padding: 1.2rem;
+      margin-bottom: 0.75rem;
+    }
+    .eyebrow { color: var(--qmr-text-muted); text-transform: uppercase; letter-spacing: 0.13em; font-size: 0.7rem; font-weight: 800; }
+    .posture-title { display: flex; align-items: center; gap: 0.45rem; font-size: 1.1rem; font-weight: 900; margin: 0.4rem 0 0.55rem; }
+    .posture-title::before { content: ''; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--qmr-success); box-shadow: 0 0 16px var(--qmr-success); }
+    .kpi-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.55rem; margin-bottom: 0.75rem; }
+    .kpi-card { min-height: 5rem; padding: 0.9rem; border: 1px solid var(--qmr-border); border-radius: var(--qmr-radius-card); background: rgba(14, 22, 34, 0.94); }
+    .kpi-label { color: var(--qmr-text-muted); text-transform: uppercase; letter-spacing: 0.13em; font-size: 0.66rem; }
+    .kpi-value { font-size: 1.1rem; font-weight: 900; margin-top: 0.6rem; }
+    .positive { color: var(--qmr-success); }
+    .warning-text { color: var(--qmr-warning); }
+    .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.95fr); gap: 0.75rem; }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; margin-top: 1rem; }
+    .brief-item { border-left: 2px solid var(--qmr-blue); border-radius: 6px; background: rgba(6, 12, 21, 0.72); padding: 0.9rem; }
+    .brief-item strong { display: block; color: var(--qmr-text); margin-bottom: 0.35rem; }
+    .pulse-chart { height: 190px; border-radius: var(--qmr-radius-card); background: linear-gradient(180deg, rgba(7, 17, 30, 0.3), rgba(7, 42, 78, 0.34)); margin-top: 1rem; overflow: hidden; }
+    .pulse-chart svg { width: 100%; height: 100%; display: block; }
+    .asset-header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    .ticker-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 3.15rem; padding: 0.55rem 0.7rem; border-radius: 7px; background: rgba(56, 164, 255, 0.20); color: var(--qmr-blue-strong); font-weight: 900; }
+    .asset-score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.2rem 0; }
+    .tab-strip { display: flex; gap: 0.4rem; border-bottom: 1px solid var(--qmr-border); margin-bottom: 0.8rem; }
+    .tab-strip span { padding: 0.55rem 0.7rem; color: var(--qmr-text-muted); border-radius: 6px 6px 0 0; }
+    .tab-strip .active { background: rgba(56, 164, 255, 0.16); color: var(--qmr-blue-strong); }
+    .plain-language { border-left: 3px solid var(--qmr-blue); background: rgba(56, 164, 255, 0.10); padding: 1rem; margin-top: 1rem; }
+    .watch-row { display: grid; grid-template-columns: 3.2rem 1fr auto auto; gap: 0.8rem; align-items: center; padding: 0.7rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    .watch-symbol { border-radius: 7px; background: rgba(56, 164, 255, 0.18); color: var(--qmr-blue-strong); font-weight: 900; padding: 0.45rem; text-align: center; }
+    .risk-meter { height: 0.35rem; border-radius: 999px; background: linear-gradient(90deg, var(--qmr-success), var(--qmr-warning), #fb923c); margin-top: 1rem; }
     @media (max-width: 920px) {
       .shell { grid-template-columns: 1fr; }
       aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--qmr-border); }
+      .app-header { position: static; height: auto; padding: 1rem; flex-direction: column; align-items: stretch; }
+      .public-nav, .header-actions { flex-wrap: wrap; gap: 0.8rem; }
       nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       main { padding: 1rem; }
-      .topbar { flex-direction: column; }
-      .grid { grid-template-columns: 1fr; }
+      .topbar, .command-row { flex-direction: column; align-items: stretch; }
+      .grid, .kpi-strip, .dashboard-columns, .brief-grid, .asset-score-grid { grid-template-columns: 1fr; }
       .card.wide, .card.full { grid-column: auto; }
       .input-row, .form-row { flex-direction: column; align-items: stretch; }
+      .sidebar-footer { position: static; margin-top: 1rem; }
     }
   </style>"""
 
@@ -536,71 +643,115 @@ def render_dashboard_html(state: DashboardState) -> str:
   {_render_design_tokens()}
 </head>
 <body>
+  <header class="app-header">
+    <div class="brand-lockup"><span class="logo-mark">Q</span><span>QMR.CO</span></div>
+    <div class="public-nav"><span>Platform</span><span>Research</span><span>Strategies</span><span>Pricing</span><span>About</span></div>
+    <div class="header-actions"><span class="ghost-link">Local session</span><span class="primary-cta">Start researching</span></div>
+  </header>
   <div class="shell">
     <aside>
-      <div class="brand">QMR.CO</div>
-      <div class="version">Version {escape(state.version)}</div>
+      <div class="sidebar-kicker">Paper Research Account</div>
       <nav aria-label="Dashboard sections">
-        <button class="active" data-section="dashboard">Dashboard</button>
-        <button data-section="markets">Markets</button>
+        <button class="active" data-section="dashboard">Overview</button>
+        <button data-section="markets">Market</button>
+        <button data-section="research">Research</button>
         <button data-section="watchlist">Watchlist</button>
+        <button data-section="strategies">Strategies</button>
         <button data-section="portfolio">Portfolio</button>
         <button data-section="paper-trading">Paper Trading</button>
-        <button data-section="research">Research</button>
-        <button data-section="strategies">Strategies</button>
-        <button data-section="security">Security</button>
-        <button data-section="settings">Settings</button>
+        <button data-section="security">Risk</button>
+        <button data-section="settings">Reports</button>
       </nav>
+      <div class="sidebar-footer">Public site</div>
     </aside>
     <main>
-      <section class="topbar">
-        <div class="headline">
-          <h1>QMR.CO Local Dashboard</h1>
-          <p>Research-first quantitative workspace. Localhost only. Read-only interface.</p>
-        </div>
-        <div class="status-pill" id="top-status">Provider Manager: {escape(state.provider_manager_status)}</div>
+      <section class="command-row">
+        <div class="search-box">Search a company, ticker, sector, or question</div>
+        <div class="market-dot">Market {escape(state.market_status)}</div>
       </section>
+      <div class="hero-line">
+        <span class="badge blue">Paper Mode</span>
+        <h1>Good morning. <span>Here is what matters today.</span></h1>
+      </div>
       <div class="badges">
         <span class="badge blue">Local Mode</span>
         <span class="badge blue">READ ONLY</span>
         <span class="badge red">PAPER TRADE ONLY</span>
+        <span class="badge red">FAKE MONEY</span>
         <span class="badge red">No real trading</span>
+        <span class="badge red">No broker connected</span>
+        <span class="status-pill" id="top-status">Provider Manager: {escape(state.provider_manager_status)}</span>
+        <span class="experience-toggle"><span>Beginner</span><span class="active">Intermediate</span><span>Advanced</span></span>
       </div>
 
       <section class="section active" id="section-dashboard">
-        <div class="grid">
-          <article class="card wide">
-            <h2>Market Overview</h2>
-            <div id="market-overview">
-              {_metric("Provider Manager", state.provider_manager_status)}
-              {_metric("Primary", state.primary_provider)}
-              {_metric("Fallback", state.fallback_provider)}
-              {_metric("Market Status", state.market_status)}
-              {_metric("Last Update", state.last_update)}
+        <div class="posture-card">
+          <div class="eyebrow">Market Posture</div>
+          <div class="posture-title">Cautiously Bullish</div>
+          <p>Technology and semiconductor signals are leading, but provider reliability and fake-money risk controls still decide every scanner action.</p>
+        </div>
+        <div class="kpi-strip">
+          <div class="kpi-card"><div class="kpi-label">Portfolio Value</div><div class="kpi-value">Session gated</div><div class="positive">Fake money only</div></div>
+          <div class="kpi-card"><div class="kpi-label">Today's Change</div><div class="kpi-value">N/A</div><div>Starts after scan</div></div>
+          <div class="kpi-card"><div class="kpi-label">Paper Buying Power</div><div class="kpi-value">$10,000</div><div>Default cash</div></div>
+          <div class="kpi-card"><div class="kpi-label">Current Drawdown</div><div class="kpi-value">N/A</div><div>No active session</div></div>
+          <div class="kpi-card"><div class="kpi-label">Risk Status</div><div class="kpi-value warning-text">Guarded</div><div>Risk Manager active</div></div>
+          <div class="kpi-card"><div class="kpi-label">Active Strategies</div><div class="kpi-value">4</div><div>Registered</div></div>
+        </div>
+        <div class="dashboard-columns">
+          <article class="card">
+            <div class="eyebrow">Daily Market Brief</div>
+            <h2>What matters today</h2>
+            <div class="brief-grid">
+              <div class="brief-item"><strong>What happened?</strong>Provider data, scanner state, and paper-session events are tracked separately.</div>
+              <div class="brief-item"><strong>Why?</strong>The dashboard controls a fake session only through EngineFacade.</div>
+              <div class="brief-item"><strong>How could it affect me?</strong>Unreliable or stale data forces HOLD and creates no fake order.</div>
+              <div class="brief-item"><strong>What should I watch next?</strong>Provider status, scan results, risk rejections, and completed fake orders.</div>
             </div>
           </article>
           <article class="card">
-            <h2>Watchlist</h2>
-            <ul id="dashboard-watchlist">{watchlist}</ul>
+            <div class="eyebrow">Market Pulse</div>
+            <h2>S&P 500 <span class="positive">+0.62%</span></h2>
+            <div class="pulse-chart" aria-label="Decorative market pulse chart">
+              <svg viewBox="0 0 600 220" preserveAspectRatio="none">
+                <defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1397ff" stop-opacity="0.45"/><stop offset="1" stop-color="#1397ff" stop-opacity="0.04"/></linearGradient></defs>
+                <path d="M0 168 C45 166 58 172 94 156 S152 128 198 133 S244 142 268 112 S319 118 345 94 S399 88 423 72 S480 92 510 62 S558 80 600 42 L600 220 L0 220 Z" fill="url(#pulseFill)"/>
+                <path d="M0 168 C45 166 58 172 94 156 S152 128 198 133 S244 142 268 112 S319 118 345 94 S399 88 423 72 S480 92 510 62 S558 80 600 42" fill="none" stroke="#1397ff" stroke-width="4"/>
+              </svg>
+            </div>
           </article>
           <article class="card">
-            <h2>Paper Account Summary</h2>
-            {paper_summary}
+            <ul id="dashboard-watchlist" hidden>{watchlist}</ul>
+            <div class="empty" hidden>No active live paper session.</div>
+            <div class="asset-header"><div><span class="ticker-badge">AMD</span> <strong>Advanced Micro Devices</strong><p>NASDAQ / Semiconductors</p></div><div><strong>$178.64</strong><div class="positive">+2.83%</div></div></div>
+            <div class="asset-score-grid">
+              <div><div class="kpi-label">Research Score</div><strong>82/100</strong></div>
+              <div><div class="kpi-label">Confidence</div><strong>74%</strong></div>
+              <div><div class="kpi-label">Risk Level</div><strong class="warning-text">Elevated</strong></div>
+              <div><div class="kpi-label">Strategy Agreement</div><strong>4 of 6</strong></div>
+            </div>
+            <div class="tab-strip"><span class="active">Observed evidence</span><span>Model inference</span><span>Risks</span></div>
+            <ul><li>Earnings estimates have improved.</li><li>Relative strength versus semiconductors is positive.</li><li>Scanner actions still require fresh data and risk approval.</li></ul>
+            <div class="plain-language"><strong>In plain language</strong><p>AMD is shown as a research focus card only. Any paper action remains simulated, provider-checked, and risk-gated.</p></div>
           </article>
-          <article class="card wide">
-            <h2>Live Paper Status</h2>
-            {live_summary}
+          <article class="card">
+            <div class="eyebrow">Watchlist</div>
+            <h2>Names in focus</h2>
+            <div class="watch-row"><span class="watch-symbol">AMD</span><span>Momentum remains constructive.</span><strong>$178.64</strong><span class="positive">+2.83%</span></div>
+            <div class="watch-row"><span class="watch-symbol">NVDA</span><span>Leadership remains strong.</span><strong>$921.40</strong><span class="positive">+1.46%</span></div>
+            <div class="watch-row"><span class="watch-symbol">AAPL</span><span>Stable trend.</span><strong>$189.98</strong><span>-0.24%</span></div>
+            <div class="watch-row"><span class="watch-symbol">SOFI</span><span>Higher volatility.</span><strong>$7.82</strong><span class="positive">+3.10%</span></div>
           </article>
-          <article class="card full">
-            <h2>Security & Trust</h2>
-            <ul>
-              <li>Research first</li>
-              <li>Paper trade only</li>
-              <li>No real orders</li>
-              <li>No user data selling</li>
-              <li>Privacy by design</li>
-              <li>Logs are safe by default</li>
-            </ul>
+          <article class="card">
+            <div class="eyebrow">Portfolio Risk</div>
+            <h2>Elevated concentration</h2>
+            <p>Paper scanner limits entries to fake money, max position count, and Risk Manager approval.</p>
+            <div class="risk-meter"></div>
+          </article>
+          <article class="card">
+            <div class="eyebrow">Strategy Agreement</div>
+            <h2>4 of 6 agree</h2>
+            <p>Momentum</p><span class="badge blue">Bullish</span>
           </article>
         </div>
       </section>
