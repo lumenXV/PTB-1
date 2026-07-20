@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ptb1.market_data import MarketDataRequest, MarketDataResult, MarketDataStatus, ProviderManager
+from ptb1.engine import EngineFacade
+from ptb1.market_data import MarketDataResult, MarketDataStatus, ProviderManager
+from ptb1.snapshots import snapshot_to_dict
 from ptb1.operations import VERSION
 from ptb1.security import PrivacyFilter
-from ptb1.strategies import get_available_strategies
 
 
 @dataclass(frozen=True)
@@ -75,7 +76,7 @@ class DashboardApplication:
         data_dir: Path = Path("datasets"),
     ) -> None:
         """Create a dashboard application with injectable dependencies."""
-        self.provider_manager = provider_manager or ProviderManager()
+        self.engine = EngineFacade(provider_manager=provider_manager, data_dir=data_dir)
         self.session = session or DashboardSession()
         self.data_dir = data_dir
         self.privacy_filter = PrivacyFilter()
@@ -84,9 +85,9 @@ class DashboardApplication:
         """Build safe display state without running strategies or research."""
         return DashboardState(
             version=VERSION,
-            provider_manager_status=self.provider_manager.connection_status(),
-            primary_provider=self.provider_manager.primary_provider_name(),
-            fallback_provider=self.provider_manager.fallback_provider_names(),
+            provider_manager_status=str(self.engine.market_status()["provider_manager_status"]),
+            primary_provider=str(self.engine.market_status()["primary_provider"]),
+            fallback_provider=str(self.engine.market_status()["fallback_provider"]),
             market_status=_market_status(),
             last_update=datetime.now().strftime("%H:%M:%S"),
             watchlist_lines=self._watchlist_lines(),
@@ -116,7 +117,7 @@ class DashboardApplication:
         normalized_symbols = [_normalize_symbol(symbol) for symbol in symbols if symbol.strip()]
         results = [
             self._safe_market_result(
-                self.provider_manager.get_market_data(MarketDataRequest(symbol=symbol, period="5d", interval="1d"))
+                self.engine.market_data(symbol=symbol, period="5d", interval="1d")
             )
             for symbol in normalized_symbols
         ]
@@ -133,9 +134,7 @@ class DashboardApplication:
     def add_watchlist_symbol(self, symbol: str) -> dict[str, object]:
         """Validate and add one dashboard-local watchlist symbol."""
         normalized_symbol = _normalize_symbol(symbol)
-        result = self.provider_manager.get_market_data(
-            MarketDataRequest(symbol=normalized_symbol, period="5d", interval="1d")
-        )
+        result = self.engine.market_data(symbol=normalized_symbol, period="5d", interval="1d")
         if not _is_watchable_result(result):
             return {
                 "added": False,
@@ -155,37 +154,16 @@ class DashboardApplication:
     def refresh_watchlist(self) -> dict[str, object]:
         """Refresh watched symbols using ProviderManager cache and cooldown behavior."""
         for symbol in list(self.session.watchlist):
-            self.session.watchlist[symbol] = self.provider_manager.get_market_data(
-                MarketDataRequest(symbol=symbol, period="5d", interval="1d")
-            )
+            self.session.watchlist[symbol] = self.engine.market_data(symbol=symbol, period="5d", interval="1d")
         return self.watchlist()
 
     def strategies(self) -> dict[str, object]:
         """Return available strategy education without executing strategies."""
-        items = []
-        for strategy in get_available_strategies():
-            education = strategy.education
-            items.append(
-                {
-                    "name": strategy.name,
-                    "description": education.description,
-                    "purpose": education.purpose,
-                    "risk_level": education.risk_level,
-                }
-            )
-        return {"strategies": items, "execution": False}
+        return {"strategies": list(self.engine.available_strategies()), "execution": False}
 
     def research(self) -> dict[str, object]:
         """Return research capability facts without running backtests."""
-        datasets = []
-        if self.data_dir.exists():
-            datasets = [path.name for path in sorted(self.data_dir.glob("*.csv"))]
-        return {
-            "research_engine": "available",
-            "automatic_backtests": False,
-            "datasets": datasets,
-            "strategy_count": len(get_available_strategies()),
-        }
+        return self.engine.research_status()
 
     def paper(self) -> dict[str, object]:
         """Return safe paper session status."""
@@ -227,6 +205,18 @@ class DashboardApplication:
             "read_only": True,
         }
 
+    def paper_session(self) -> dict[str, object]:
+        """Return the full safe fake paper session snapshot."""
+        return snapshot_to_dict(self.engine.get_paper_snapshot())
+
+    def paper_scanner(self) -> dict[str, object]:
+        """Return the safe fake paper scanner snapshot."""
+        return {"scanner": snapshot_to_dict(self.engine.get_scanner_snapshot())}
+
+    def paper_events(self, after_sequence: int | None = None) -> dict[str, object]:
+        """Return safe fake paper session events."""
+        return {"events": [snapshot_to_dict(event) for event in self.engine.get_events(after_sequence)]}
+
     def handle_api_get(self, path: str, query: dict[str, list[str]]) -> tuple[int, dict[str, object]]:
         """Handle read-only GET API routes."""
         try:
@@ -245,6 +235,14 @@ class DashboardApplication:
                 return 200, self.paper()
             if path == "/api/security":
                 return 200, self.security()
+            if path == "/api/paper/session":
+                return 200, self.paper_session()
+            if path == "/api/paper/scanner":
+                return 200, self.paper_scanner()
+            if path == "/api/paper/events":
+                after_values = query.get("after", [])
+                after_sequence = int(after_values[0]) if after_values else None
+                return 200, self.paper_events(after_sequence)
             return 404, {"error": "Not found."}
         except ValueError as exc:
             return 400, {"error": self.privacy_filter.redact(str(exc))}
@@ -258,6 +256,17 @@ class DashboardApplication:
                 return 200, self.remove_watchlist_symbol(str(payload.get("symbol", "")))
             if path == "/api/watchlist/refresh":
                 return 200, self.refresh_watchlist()
+            if path == "/api/paper/start":
+                return self.engine.start_paper_session(payload)
+            if path == "/api/paper/stop":
+                return self.engine.stop_paper_session()
+            if path == "/api/paper/symbols":
+                symbols = payload.get("symbols", [])
+                if isinstance(symbols, str):
+                    symbols = [item.strip() for item in symbols.split(",") if item.strip()]
+                if not isinstance(symbols, list):
+                    return 400, {"error": "Symbols must be a list or comma-separated string."}
+                return self.engine.update_scanner_symbols([str(symbol) for symbol in symbols])
             return 404, {"error": "Not found."}
         except ValueError as exc:
             return 400, {"error": self.privacy_filter.redact(str(exc))}
@@ -345,7 +354,7 @@ def _render_design_tokens() -> str:
         linear-gradient(135deg, #04060c 0%, #07101e 48%, #05070d 100%);
       color: var(--qmr-text);
     }
-    button, input { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     .shell { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
     aside {
       border-right: 1px solid var(--qmr-border);
@@ -451,15 +460,17 @@ def _render_design_tokens() -> str:
     }
     .empty-state strong { display: block; color: var(--qmr-text-soft); margin-bottom: 0.25rem; }
     .input-row, .form-row { display: flex; gap: 0.75rem; align-items: center; margin: 1rem 0; }
-    input {
+    input, select, textarea {
       min-width: 0;
-      flex: 1;
+      width: 100%;
       border: 1px solid var(--qmr-border);
       border-radius: var(--qmr-radius-control);
       background: rgba(2, 6, 14, 0.76);
       color: var(--qmr-text);
       padding: 0.78rem 0.85rem;
+      margin: 0.35rem 0 0.75rem;
     }
+    textarea { min-height: 6rem; resize: vertical; }
     button.action {
       border: 1px solid rgba(56, 164, 255, 0.5);
       background: linear-gradient(135deg, rgba(56, 164, 255, 0.24), rgba(56, 164, 255, 0.10));
@@ -636,9 +647,41 @@ def render_dashboard_html(state: DashboardState) -> str:
         <div class="grid">
           <article class="card full">
             <h2>Paper Trading</h2>
-            <div class="empty">Read-only. Launch live paper from the CLI: python -m ptb1 --live-paper --symbol AMD --strategy RSI --cash 10000 --interval 1 --max-iterations 3</div>
-            <div id="paper-output">{paper_summary}</div>
+            <div class="badges">
+              <span class="badge blue">Dashboard Local Control Enabled</span>
+              <span class="badge red">FAKE MONEY</span>
+              <span class="badge red">NO REAL TRADING</span>
+              <span class="badge red">NO BROKER CONNECTED</span>
+            </div>
+            <div class="empty">Website controls can start or stop one local fake-money paper scanner session. No broker exists and no real orders are possible.</div>
+            <div class="grid">
+              <article class="card">
+                <h2>Session Controls</h2>
+                <label>Starting Cash</label>
+                <input id="paper-starting-cash" value="10000" aria-label="Starting cash">
+                <label>Strategy</label>
+                <select id="paper-strategy" aria-label="Paper strategy"><option>RSI</option><option>Buy and Hold</option><option>SMA Cross</option><option>MACD</option></select>
+                <label>Scan Interval Seconds</label>
+                <input id="paper-interval" value="900" aria-label="Scan interval seconds">
+                <label>Scanner Symbols</label>
+                <textarea id="paper-symbols" aria-label="Scanner symbols">SPY,QQQ,DIA,IWM,AAPL,MSFT,NVDA,AMD,AMZN,META,GOOGL,TSLA,JPM,BAC,XOM,CVX,WMT,COST,UNH,CAT</textarea>
+                <div class="input-row">
+                  <button class="action" id="start-fake-session">Start Fake Session</button>
+                  <button class="action secondary" id="stop-fake-session">Stop Session</button>
+                </div>
+                <div id="paper-control-message" class="empty">No active fake-money session.</div>
+              </article>
+              <article class="card wide">
+                <h2>Session Snapshot</h2>
+                <div id="paper-session-output">{paper_summary}</div>
+              </article>
+            </div>
           </article>
+          <article class="card full"><h2>Scanner Results</h2><div id="paper-scanner-output" class="empty">No scanner results yet.</div></article>
+          <article class="card full"><h2>Open Positions</h2><div id="paper-positions-output" class="empty">No open fake-money positions.</div></article>
+          <article class="card full"><h2>Orders</h2><div id="paper-orders-output" class="empty">No fake paper orders.</div></article>
+          <article class="card full"><h2>Completed Trades</h2><div id="paper-trades-output" class="empty">No completed fake paper trades.</div></article>
+          <article class="card full"><h2>Event Stream</h2><div id="paper-events-output" class="empty">No events yet.</div></article>
         </div>
       </section>
 
@@ -725,9 +768,59 @@ def render_dashboard_html(state: DashboardState) -> str:
     api('/api/security').then(data => {{
       document.getElementById('security-output').innerHTML = `<ul>${{data.principles.map(item => `<li>${{item}}</li>`).join('')}}</ul>`;
     }});
+    function formatMoney(value) {{
+      return value === null || value === undefined ? 'N/A' : `$${{Number(value).toFixed(2)}}`;
+    }}
+    function metricLine(label, value) {{
+      return `<div class="metric"><span>${{label}}</span><strong>${{value}}</strong></div>`;
+    }}
+    function renderSnapshot(data) {{
+      const session = data.session;
+      const scanner = data.scanner;
+      document.getElementById('paper-session-output').innerHTML = [
+        metricLine('Session Active', session.active ? 'Yes' : 'No'),
+        metricLine('Strategy', session.strategy_name || 'N/A'),
+        metricLine('Starting Cash', formatMoney(session.starting_cash)),
+        metricLine('Cash', formatMoney(session.cash)),
+        metricLine('Portfolio Value', formatMoney(session.portfolio_value)),
+        metricLine('Realized P/L', formatMoney(session.realized_profit_loss)),
+        metricLine('Unrealized P/L', formatMoney(session.unrealized_profit_loss)),
+        metricLine('Total Return', session.total_return === null ? 'N/A' : `${{Number(session.total_return).toFixed(2)}}%`),
+        metricLine('Last Scan', session.last_scan_at || 'Never'),
+        metricLine('Next Scan', session.next_scan_at || 'N/A')
+      ].join('');
+      document.getElementById('paper-scanner-output').innerHTML = scanner.symbols.length ? scanner.symbols.map(item => `<div class="market-card"><div class="symbol">${{item.symbol}}</div><div>Status: ${{item.status}}</div><div>Provider: ${{item.provider || 'N/A'}}</div><div>Latest Price: ${{formatMoney(item.latest_price)}}</div><div>Signal: ${{item.signal}}</div><div>Action: ${{item.action_taken}}</div><div>${{item.reason}}</div></div>`).join('') : '<div class="empty">No scanner results yet.</div>';
+      document.getElementById('paper-positions-output').innerHTML = data.positions.length ? data.positions.map(item => `<div class="market-card"><div class="symbol">${{item.symbol}}</div><div>Quantity: ${{item.quantity}}</div><div>Average Entry: ${{formatMoney(item.average_entry)}}</div><div>Market Value: ${{formatMoney(item.market_value)}}</div><div>Unrealized P/L: ${{formatMoney(item.unrealized_profit_loss)}}</div></div>`).join('') : '<div class="empty">No open fake-money positions.</div>';
+      document.getElementById('paper-orders-output').innerHTML = data.orders.length ? data.orders.map(item => `<div class="market-card"><div class="symbol">#${{item.order_id}} ${{item.symbol}}</div><div>Side: ${{item.side}}</div><div>Status: ${{item.status}}</div><div>Quantity: ${{item.quantity}}</div><div>Fake Money: ${{item.fake_money}}</div><div>${{item.rejection_reason || ''}}</div></div>`).join('') : '<div class="empty">No fake paper orders.</div>';
+      document.getElementById('paper-trades-output').innerHTML = data.completed_trades.length ? data.completed_trades.map(item => `<div class="market-card"><div class="symbol">${{item.symbol}}</div><div>Quantity: ${{item.quantity}}</div><div>Realized P/L: ${{formatMoney(item.realized_profit_loss)}}</div><div>Return: ${{Number(item.return_percentage).toFixed(2)}}%</div></div>`).join('') : '<div class="empty">No completed fake paper trades.</div>';
+      document.getElementById('paper-events-output').innerHTML = data.recent_events.length ? data.recent_events.map(item => `<div class="market-card"><div class="symbol">#${{item.sequence}} ${{item.event_type}}</div><div>${{item.timestamp}}</div><div>${{item.symbol || ''}}</div><div>${{item.message}}</div></div>`).join('') : '<div class="empty">No events yet.</div>';
+    }}
+    async function loadPaperSnapshot() {{
+      const data = await api('/api/paper/session');
+      renderSnapshot(data);
+    }}
+    async function startFakeSession() {{
+      const payload = {{
+        starting_cash: Number(document.getElementById('paper-starting-cash').value),
+        strategy_name: document.getElementById('paper-strategy').value,
+        scan_interval_seconds: Number(document.getElementById('paper-interval').value),
+        symbols: document.getElementById('paper-symbols').value
+      }};
+      const data = await api('/api/paper/start', {{method: 'POST', body: JSON.stringify(payload)}});
+      document.getElementById('paper-control-message').textContent = data.error || data.message || 'Fake session request processed.';
+      if (!data.error) renderSnapshot(data);
+    }}
+    async function stopFakeSession() {{
+      const data = await api('/api/paper/stop', {{method: 'POST', body: JSON.stringify({{}})}});
+      document.getElementById('paper-control-message').textContent = 'Stop request processed.';
+      renderSnapshot(data);
+    }}
+    document.getElementById('start-fake-session').addEventListener('click', startFakeSession);
+    document.getElementById('stop-fake-session').addEventListener('click', stopFakeSession);
     api('/api/paper').then(data => {{
       document.getElementById('portfolio-output').textContent = data.active ? `Portfolio Value: ${{data.portfolio_value}}` : `${{data.message}} ${{data.default_cash_note}}`;
     }});
+    loadPaperSnapshot();
     loadStatus();
     loadWatchlist();
   </script>
@@ -753,6 +846,7 @@ def run_dashboard(host: str = "127.0.0.1", port: int = 8765) -> None:
     except KeyboardInterrupt:
         print("\nStopping QMR.CO dashboard.")
     finally:
+        application.engine.shutdown()
         server.server_close()
 
 
@@ -780,8 +874,12 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
             if not parsed.path.startswith("/api/"):
                 self.send_error(404, "Not Found")
                 return
-            status, payload = application.handle_api_post(parsed.path, _read_json_body(self))
-            _write_json(self, payload, status)
+            payload, body_error = _read_json_body(self)
+            if body_error is not None:
+                _write_json(self, {"error": body_error}, 400)
+                return
+            status, response_payload = application.handle_api_post(parsed.path, payload)
+            _write_json(self, response_payload, status)
 
         def log_message(self, format: str, *args: object) -> None:
             """Silence per-request logs for a calmer local dashboard."""
@@ -812,19 +910,21 @@ def _write_json(handler: BaseHTTPRequestHandler, payload: dict[str, object], sta
     handler.wfile.write(body)
 
 
-def _read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, object]:
-    """Read a small JSON body from a local dashboard request."""
+def _read_json_body(handler: BaseHTTPRequestHandler) -> tuple[dict[str, object], str | None]:
+    """Read and validate a small JSON body from a local dashboard request."""
     length = int(handler.headers.get("Content-Length", "0") or "0")
     if length <= 0:
-        return {}
+        return {}, None
+    if length > 16_384:
+        return {}, "Request body is too large."
     body = handler.rfile.read(length).decode("utf-8")
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
-        return {}
+        return {}, "Malformed JSON request."
     if not isinstance(payload, dict):
-        return {}
-    return payload
+        return {}, "JSON body must be an object."
+    return payload, None
 
 
 def _render_paper_summary(summary: PaperDashboardSummary | None) -> str:

@@ -30,6 +30,8 @@ flowchart LR
     CLI --> Assets["Assets"]
     CLI --> StrategyResult["StrategyResult"]
     CLI --> Dashboard["Local Dashboard"]
+    Dashboard --> EngineFacade["EngineFacade"]
+    EngineFacade --> PaperSessionController["PaperSessionController"]
     Trader --> RiskManager["Risk Manager"]
     Paper --> RiskManager
     LivePaper --> RiskManager
@@ -167,6 +169,58 @@ Must not:
 - Serialize UI or API responses.
 - Add templating or formatting dependencies.
 
+
+### Engine Facade
+
+Module: `ptb1/engine.py`
+
+Responsibilities:
+
+- Provide the dashboard's stable boundary into engine-owned behavior.
+- Validate dashboard paper-session requests.
+- Delegate paper-session lifecycle to `PaperSessionController`.
+- Expose immutable snapshots and ordered events.
+- Expose provider status, market data, strategy education, and research status without exposing engine internals.
+
+Must not:
+
+- Duplicate provider fetching, strategy calculations, risk rules, paper-order behavior, or portfolio accounting.
+- Expose provider clients, locks, raw exceptions, secrets, or paper-account internals to the dashboard.
+
+### Paper Session Controller
+
+Module: `ptb1/paper_session.py`
+
+Responsibilities:
+
+- Own one application-wide fake-money session.
+- Own one sequential background scanner worker.
+- Provide thread-safe start, stop, restart, shutdown, snapshot, symbol update, and event access.
+- Record ordered append-only in-memory events, including `USER_ACTION`.
+- Delegate provider data to `ProviderManager`, strategy signals to registered strategies, risk decisions to `RiskManager`, and fake order/account mutation to the existing paper module.
+
+Must not:
+
+- Place real orders.
+- Connect to brokers.
+- Duplicate provider, strategy, risk, or paper-account logic.
+- Persist session state.
+- Scan unbounded symbol universes or introduce uncontrolled parallel network requests.
+
+### Snapshot Contracts
+
+Module: `ptb1/snapshots.py`
+
+Responsibilities:
+
+- Define frozen dashboard transport snapshots for paper sessions, scanner state, symbols, positions, orders, trades, and events.
+- Serialize safe snapshot data for local JSON APIs.
+- Preserve unavailable values as `None` and use tuples for public collections.
+
+Must not:
+
+- Fetch data, run strategies, approve risk, place orders, mutate accounts, start workers, persist state, or format HTML.
+
 ### Dashboard
 
 Module: `ptb1/dashboard.py`
@@ -180,6 +234,7 @@ Responsibilities:
 - Display safe platform, provider, paper, live-paper, and trust state.
 - Provide safe local JSON routes for status, markets, watchlist, strategies, research, paper, and security.
 - Maintain dashboard-local in-memory watchlist state for the running server process.
+- Reach paper-session behavior only through `EngineFacade`.
 - Validate watchlist symbols before requesting provider data.
 - Use ProviderManager cache and cooldown behavior for market refreshes.
 - Print the local dashboard URL at startup.

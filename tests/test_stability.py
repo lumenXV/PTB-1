@@ -26,6 +26,7 @@ from ptb1.dashboard import (
     create_dashboard_handler,
     render_dashboard_html,
 )
+from ptb1.engine import EngineFacade, EnginePaperSessionConfig
 from ptb1.historian import PriceBar, load_price_history
 from ptb1.live_paper import LivePaperConfig, LivePaperSession
 from ptb1.market_data import (
@@ -41,9 +42,25 @@ from ptb1.market_data import (
 )
 from ptb1.operations import OperationsStatus, Watchlist, render_market_intelligence, render_menu, render_status
 from ptb1.paper import PaperSession
+from ptb1.paper_session import (
+    DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_SCANNER_UNIVERSE,
+    MIN_SCAN_INTERVAL_SECONDS,
+    PaperSessionConfig,
+    PaperSessionController,
+    normalize_symbol_universe,
+)
 from ptb1.researcher import Signal
 from ptb1.risk_manager import RiskManager
 from ptb1.security import AuditLogger, ConfigValidator, PrivacyFilter, SecretManager, SecureStorage
+from ptb1.snapshots import (
+    DashboardPaperSnapshot,
+    EventSnapshot,
+    ScannerSnapshot,
+    ScannerSymbolSnapshot,
+    SessionSnapshot,
+    snapshot_to_dict,
+)
 from ptb1.strategy_result import ResearchContext, StrategyResult, format_strategy_result
 from ptb1.strategies import BuyAndHoldStrategy, RsiStrategy
 
@@ -282,6 +299,164 @@ class UnifiedResearchFoundationTests(unittest.TestCase):
         self.assertIn("Asset Type: stock", output)
 
 
+class PaperScannerSnapshotTests(unittest.TestCase):
+    """Verify immutable paper scanner transport snapshots."""
+
+    def test_snapshot_serialization_preserves_none_and_tuples(self) -> None:
+        """Snapshots should serialize safely without fabricating unavailable values."""
+        generated_at = datetime(2024, 1, 1, 12, 0, 0)
+        snapshot = DashboardPaperSnapshot(
+            schema_version="1",
+            session=SessionSnapshot(None, False, None, None, None, None, None, None, None, None, None, None, None, None, None, None, "No active session."),
+            scanner=ScannerSnapshot(False, "IDLE", (), None, None, None, 0, 0, 0, 0, 0, 0, "Idle.", generated_at),
+            positions=(),
+            orders=(),
+            completed_trades=(),
+            recent_events=(EventSnapshot(1, generated_at, "USER_ACTION", "Viewed token=abc123", None, {"email": "user@example.com"}),),
+            generated_at=generated_at,
+        )
+
+        payload = snapshot_to_dict(snapshot)
+
+        self.assertEqual(payload["schema_version"], "1")
+        self.assertIsNone(payload["session"]["session_id"])
+        self.assertEqual(payload["positions"], [])
+        self.assertEqual(payload["generated_at"], "2024-01-01T12:00:00")
+        self.assertNotIn("abc123", json.dumps(payload))
+        self.assertNotIn("user@example.com", json.dumps(payload))
+
+    def test_snapshot_rejects_mutable_lists_and_raw_exceptions(self) -> None:
+        """Unsupported internals should fail safely during serialization."""
+        with self.assertRaisesRegex(ValueError, "tuples"):
+            snapshot_to_dict({"bad": ["mutable"]})
+        with self.assertRaisesRegex(ValueError, "Raw exceptions"):
+            snapshot_to_dict({"bad": ValueError("secret")})
+
+
+class PaperSessionControllerTests(unittest.TestCase):
+    """Verify the EngineFacade and PaperSessionController vertical slice."""
+
+    def test_default_universe_and_interval_are_conservative(self) -> None:
+        """Scanner defaults should remain bounded and deterministic."""
+        self.assertEqual(DEFAULT_SCANNER_UNIVERSE[0], "SPY")
+        self.assertEqual(DEFAULT_SCANNER_UNIVERSE[-1], "CAT")
+        self.assertEqual(len(DEFAULT_SCANNER_UNIVERSE), 20)
+        self.assertEqual(MIN_SCAN_INTERVAL_SECONDS, 300)
+        self.assertEqual(DEFAULT_SCAN_INTERVAL_SECONDS, 900)
+
+    def test_symbol_universe_normalizes_deduplicates_and_rejects_bad_values(self) -> None:
+        """Symbol universes should validate before scanner use."""
+        self.assertEqual(normalize_symbol_universe((" amd ", "AMD", "spy")), ("AMD", "SPY"))
+        with self.assertRaisesRegex(ValueError, "Invalid scanner symbol"):
+            normalize_symbol_universe(("41WED",))
+        with self.assertRaisesRegex(ValueError, "empty"):
+            normalize_symbol_universe(())
+        with self.assertRaisesRegex(ValueError, "40"):
+            normalize_symbol_universe(tuple(f"A{chr(65 + (i // 26))}{chr(65 + (i % 26))}" for i in range(41)))
+
+    def test_controller_singleton_duplicate_start_stop_and_restart(self) -> None:
+        """Only one fake session should run at a time, with safe restart after stop."""
+        controller = PaperSessionController(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)), start_worker=False)
+        config = PaperSessionConfig(symbols=("AMD",), strategy_name="Fixed Signal", strategies=()) if False else PaperSessionConfig(symbols=("AMD",), strategy_name="RSI")
+
+        first = controller.start(config)
+        duplicate = controller.start(config)
+        stopped = controller.stop()
+        second = controller.start(config)
+
+        self.assertTrue(first.started)
+        self.assertFalse(duplicate.started)
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertFalse(stopped.session.active)
+        self.assertTrue(second.started)
+        controller.shutdown()
+
+    def test_controller_run_scan_hold_creates_no_order(self) -> None:
+        """HOLD signals should not create fake paper orders."""
+        controller = PaperSessionController(
+            provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)),
+            strategies=(_FixedSignalStrategy(Signal.HOLD),),
+            start_worker=False,
+        )
+        controller.start(PaperSessionConfig(symbols=("AMD",), strategy_name="Fixed Signal"))
+        controller.run_scan_once()
+        snapshot = controller.snapshot()
+
+        self.assertEqual(snapshot.scanner.hold_count, 1)
+        self.assertEqual(snapshot.orders, ())
+        controller.shutdown()
+
+    def test_controller_approved_buy_routes_through_fake_paper_account(self) -> None:
+        """Approved BUY actions should create fake-money paper account orders."""
+        controller = PaperSessionController(
+            provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)),
+            strategies=(_FixedSignalStrategy(Signal.BUY),),
+            start_worker=False,
+        )
+        controller.start(PaperSessionConfig(symbols=("AMD",), strategy_name="Fixed Signal"))
+        controller.run_scan_once()
+        snapshot = controller.snapshot()
+
+        self.assertEqual(len(snapshot.orders), 1)
+        self.assertEqual(snapshot.orders[0].status, "FILLED")
+        self.assertTrue(snapshot.orders[0].fake_money)
+        self.assertEqual(len(snapshot.positions), 1)
+        controller.shutdown()
+
+    def test_controller_provider_failure_stale_and_strategy_error_create_no_order(self) -> None:
+        """Unsafe data or strategy failures should fail closed."""
+        for status in (MarketDataStatus.ERROR, MarketDataStatus.STALE, MarketDataStatus.MISSING):
+            controller = PaperSessionController(
+                provider_manager=_ResultLiveProvider(_market_result(status)),
+                strategies=(_FixedSignalStrategy(Signal.BUY),),
+                start_worker=False,
+            )
+            controller.start(PaperSessionConfig(symbols=("AMD",), strategy_name="Fixed Signal"))
+            controller.run_scan_once()
+            self.assertEqual(controller.snapshot().orders, ())
+            controller.shutdown()
+
+        controller = PaperSessionController(
+            provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)),
+            strategies=(_FailingStrategy(),),
+            start_worker=False,
+        )
+        controller.start(PaperSessionConfig(symbols=("AMD",), strategy_name="Failing Strategy"))
+        controller.run_scan_once()
+        self.assertEqual(controller.snapshot().orders, ())
+        self.assertEqual(controller.snapshot().scanner.error_count, 1)
+        controller.shutdown()
+
+    def test_events_are_ordered_filterable_and_include_user_action(self) -> None:
+        """The in-memory event stream should be ordered and filterable."""
+        controller = PaperSessionController(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)), start_worker=False)
+        controller.start(PaperSessionConfig(symbols=("AMD",), strategy_name="RSI"))
+        controller.stop()
+
+        events = controller.events()
+        filtered = controller.events(after_sequence=events[0].sequence)
+
+        self.assertEqual([event.sequence for event in events], sorted(event.sequence for event in events))
+        self.assertTrue(any(event.event_type == "USER_ACTION" for event in events))
+        self.assertTrue(all(event.sequence > events[0].sequence for event in filtered))
+
+    def test_engine_facade_exposes_snapshots_and_rejects_bad_start(self) -> None:
+        """Dashboard-facing calls should go through EngineFacade only."""
+        facade = EngineFacade(
+            provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)),
+            paper_controller=PaperSessionController(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)), start_worker=False),
+        )
+        bad_status, bad_payload = facade.start_paper_session({"scan_interval_seconds": 1, "symbols": ["AMD"]})
+        good_status, good_payload = facade.start_paper_session({"scan_interval_seconds": 300, "symbols": ["AMD"], "strategy_name": "RSI"})
+
+        self.assertEqual(bad_status, 400)
+        self.assertIn("error", bad_payload)
+        self.assertEqual(good_status, 201)
+        self.assertEqual(good_payload["schema_version"], "1")
+        self.assertTrue(facade.get_paper_snapshot().session.active)
+        facade.shutdown()
+
+
 class DashboardShellTests(unittest.TestCase):
     """Verify the local read-only dashboard shell renders safely."""
 
@@ -444,6 +619,62 @@ class DashboardShellTests(unittest.TestCase):
         for status, payload in routes:
             self.assertEqual(status, 200)
             json.dumps(payload)
+
+    def test_dashboard_paper_routes_return_safe_snapshots(self) -> None:
+        """Paper session API routes should expose safe facade-backed snapshots."""
+        controller = PaperSessionController(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)), start_worker=False)
+        app = DashboardApplication(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)))
+        app.engine = EngineFacade(provider_manager=_ResultLiveProvider(_market_result(MarketDataStatus.OK)), paper_controller=controller)
+
+        start_status, start_payload = app.handle_api_post(
+            "/api/paper/start",
+            {"starting_cash": 10000, "strategy_name": "RSI", "scan_interval_seconds": 300, "symbols": ["AMD"]},
+        )
+        session_status, session_payload = app.handle_api_get("/api/paper/session", {})
+        scanner_status, scanner_payload = app.handle_api_get("/api/paper/scanner", {})
+        events_status, events_payload = app.handle_api_get("/api/paper/events", {"after": ["0"]})
+        stop_status, stop_payload = app.handle_api_post("/api/paper/stop", {})
+
+        self.assertEqual(start_status, 201)
+        self.assertEqual(session_status, 200)
+        self.assertEqual(scanner_status, 200)
+        self.assertEqual(events_status, 200)
+        self.assertEqual(stop_status, 200)
+        self.assertTrue(start_payload["session"]["active"])
+        self.assertEqual(session_payload["schema_version"], "1")
+        self.assertIn("scanner", scanner_payload)
+        self.assertTrue(events_payload["events"])
+        self.assertFalse(stop_payload["session"]["active"])
+        json.dumps(session_payload)
+
+    def test_dashboard_rejects_malformed_json_without_raw_exception(self) -> None:
+        """Malformed dashboard JSON should return a safe 400 response."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(
+                f"http://localhost:{port}/api/paper/start",
+                data=b"{bad json",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=2)
+            body = raised.exception.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 400)
+        self.assertIn("Malformed JSON", body)
+        self.assertNotIn("Traceback", body)
 
     def test_paper_api_returns_inactive_default_state(self) -> None:
         """Paper API should not imply a running account exists."""
@@ -1315,6 +1546,16 @@ class _SequenceSignalStrategy:
         return signal
 
 
+class _FailingStrategy:
+    """Small strategy that fails safely in controller tests."""
+
+    name = "Failing Strategy"
+
+    def generate_signal(self, history: list[PriceBar], position_size: int) -> Signal:
+        """Raise a controlled strategy failure."""
+        raise ValueError("raw strategy failure should not escape")
+
+
 class _Clock:
     """Controllable clock for market repository tests."""
 
@@ -1414,9 +1655,23 @@ class _ResultLiveProvider:
     def __init__(self, result: MarketDataResult) -> None:
         """Create the provider with a fixed managed result."""
         self.result = result
+        self.calls: list[str] = []
+
+    def connection_status(self) -> str:
+        """Return fake provider readiness."""
+        return "Connected"
+
+    def primary_provider_name(self) -> str:
+        """Return fake primary provider name."""
+        return "fake"
+
+    def fallback_provider_names(self) -> str:
+        """Return fake fallback provider names."""
+        return "none"
 
     def get_market_data(self, request: MarketDataRequest) -> MarketDataResult:
         """Return a fixed managed result for live paper."""
+        self.calls.append(request.symbol.upper())
         return self.result
 
 

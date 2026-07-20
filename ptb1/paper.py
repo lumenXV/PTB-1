@@ -92,6 +92,97 @@ class PaperSessionResult:
     diagnostics: list[str]
 
 
+@dataclass(frozen=True)
+class PaperExecutionResult:
+    """Result of submitting one fake paper signal through account and risk logic."""
+
+    approved: bool
+    filled: bool
+    order_created: bool
+    side: str
+    quantity: int
+    reason: str
+
+
+@dataclass
+class PaperEntry:
+    """Track open entry facts for a fake paper round trip."""
+
+    date: str
+    index: int
+
+
+def apply_paper_signal(
+    account: PaperAccount,
+    bar: PriceBar,
+    strategy_name: str,
+    signal: Signal,
+    risk_manager: RiskManager,
+    entries: dict[str, PaperEntry],
+    bar_index: int,
+    max_quantity: int | None = None,
+) -> PaperExecutionResult:
+    """Apply one signal to a fake-money account through existing risk rules."""
+    account.positions = _mark_positions(account.positions, bar)
+    position = account.positions.get(bar.symbol)
+    position_size = position.quantity if position else 0
+
+    if signal is Signal.HOLD:
+        return PaperExecutionResult(False, False, False, "HOLD", 0, "Strategy returned HOLD. No fake order placed.")
+
+    if not risk_manager.approve(signal, account.cash, bar.close, position_size):
+        quantity = _requested_quantity(signal, account.cash, bar.close, position_size)
+        reason = _rejection_reason(signal, account.cash, bar.close, position_size)
+        _record_rejected_order(account, bar, strategy_name, signal, quantity, reason)
+        return PaperExecutionResult(False, False, True, signal.value.upper(), quantity, reason)
+
+    if signal is Signal.BUY:
+        quantity = int(account.cash // bar.close)
+        if max_quantity is not None:
+            quantity = min(quantity, max_quantity)
+        if quantity <= 0:
+            reason = "Not enough fake cash to buy one share."
+            _record_rejected_order(account, bar, strategy_name, signal, 0, reason)
+            return PaperExecutionResult(False, False, True, signal.value.upper(), 0, reason)
+        account.cash -= quantity * bar.close
+        account.positions[bar.symbol] = PaperPosition(
+            symbol=bar.symbol,
+            quantity=quantity,
+            average_entry_price=bar.close,
+            last_price=bar.close,
+        )
+        entries[bar.symbol] = PaperEntry(date=bar.date.isoformat(), index=bar_index)
+        _record_filled_order(account, bar, strategy_name, signal, quantity)
+        return PaperExecutionResult(True, True, True, signal.value.upper(), quantity, "Risk Manager approved the fake order.")
+
+    if signal is Signal.SELL and position is not None:
+        account.cash += position.quantity * bar.close
+        realized = (bar.close - position.average_entry_price) * position.quantity
+        account.realized_profit_loss += realized
+        entry = entries.pop(bar.symbol, PaperEntry(date=bar.date.isoformat(), index=bar_index))
+        account.trade_log.append(
+            PaperTrade(
+                symbol=bar.symbol,
+                strategy_name=strategy_name,
+                entry_date=entry.date,
+                exit_date=bar.date.isoformat(),
+                quantity=position.quantity,
+                entry_price=position.average_entry_price,
+                exit_price=bar.close,
+                holding_period_bars=max(1, bar_index - entry.index + 1),
+                realized_profit_loss=realized,
+                realized_profit_loss_percent=((bar.close - position.average_entry_price) / position.average_entry_price) * 100,
+            )
+        )
+        del account.positions[bar.symbol]
+        _record_filled_order(account, bar, strategy_name, signal, position.quantity)
+        return PaperExecutionResult(True, True, True, signal.value.upper(), position.quantity, "Risk Manager approved the fake order.")
+
+    reason = "No valid fake order was available."
+    _record_rejected_order(account, bar, strategy_name, signal, 0, reason)
+    return PaperExecutionResult(False, False, True, signal.value.upper(), 0, reason)
+
+
 class PaperSession:
     """Run one strategy through a fake-money paper trading replay."""
 

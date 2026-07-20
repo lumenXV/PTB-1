@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Accelerated Vertical Slice: Website-Operated Fake-Money Market Scanner
+
+- Added immutable paper scanner snapshot contracts in `ptb1/snapshots.py`.
+- Added `EngineFacade` as the dashboard-facing engine boundary in `ptb1/engine.py`.
+- Added `PaperSessionController` in `ptb1/paper_session.py` for one fake-money session, one sequential background scanner, ordered events, and clean shutdown.
+- Added fake-money Paper Trading dashboard controls and safe local JSON routes for session, scanner, events, start, stop, and scanner symbols.
+- Added a reusable paper signal application helper in the existing paper module so approved fake actions route through the existing paper account model and risk manager.
+- Added tests for snapshots, lifecycle safety, scanner safety, event ordering, dashboard API safety, malformed JSON rejection, and existing route compatibility.
+- Preserved fake-money-only behavior with no broker, no real orders, no persistence, no cookies, no database, no AI/ML, and no new dependencies.
+
 ## Milestone 8.2: Dashboard Visual System and Component Cleanup
 
 - Added centralized dashboard design tokens inside `ptb1/dashboard.py`.

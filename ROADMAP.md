@@ -551,6 +551,27 @@ Out of scope:
 - Trading controls.
 - Provider, strategy, research, paper, or live-paper behavior changes.
 
+
+## Accelerated Vertical Slice: Website-Operated Fake-Money Market Scanner
+
+Status: complete.
+
+Goal: connect the local dashboard to one fake-money paper scanner session while preserving the approved engine boundary.
+
+Implemented:
+
+- `ptb1/snapshots.py` immutable dashboard transport snapshots.
+- `ptb1/engine.py` with `EngineFacade` as the only dashboard-facing engine boundary.
+- `ptb1/paper_session.py` with one application-wide fake paper session, one background scanner, thread-safe lifecycle access, ordered events, and clean shutdown.
+- Dashboard paper routes for session, scanner, events, start, stop, and symbol updates.
+- Paper Trading dashboard controls labeled as fake money only, with no manual order buttons and no broker controls.
+- Bounded default universe of 20 liquid symbols, maximum 40 symbols, sequential scanning, 15-minute default interval, and 5-minute minimum interval.
+- Tests for snapshots, lifecycle, events, scanner safety, dashboard paper APIs, malformed JSON, and existing dashboard compatibility.
+
+Out of scope:
+
+- Real trading, broker connectivity, Robinhood, wallets, accounts, login, cookies, browser client IDs, persistence, database, cloud hosting, AI/ML, new strategies, and full-market scanning.
+
 ## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

@@ -19,6 +19,7 @@ Internal Milestone 8 adds the Unified Research Framework foundation with shared 
 Milestone 8 adds a localhost-only read-only web dashboard shell for QMR.CO. It is a display surface only and does not fetch market data, mutate watchlists, or place trades.
 Milestone 8.1 makes the local dashboard functional with read-only JSON APIs, single-page navigation, market cards, and a dashboard-local in-memory watchlist. It still does not place trades, start sessions, persist data, or mutate core engine state.
 Milestone 8.2 cleans up the dashboard visual system with centralized design tokens, reusable render helpers, premium dark styling, responsive layout, clearer empty states, and consistent cards, tables, forms, badges, and safety messaging. It does not change dashboard APIs or engine behavior.
+The accelerated dashboard paper scanner vertical slice adds a website-operated fake-money session through `EngineFacade` and `PaperSessionController`. It uses one application-wide in-memory session, one sequential background scanner, a bounded 20-symbol default universe, a 15-minute default interval, and a 5-minute minimum interval. It remains fake-money only: no broker, no real orders, no database, no persistence, no cookies, no browser client IDs, and no per-tab sessions.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -126,6 +127,35 @@ python -m ptb1 --data sample_prices.csv
 ```
 
 No third-party dependencies are required.
+
+
+## Dashboard Fake-Money Scanner
+
+The local dashboard can operate one fake-money paper scanner session through the engine boundary:
+
+```text
+DashboardApplication
+        -> EngineFacade
+        -> PaperSessionController
+        -> existing provider, strategy, risk, and paper engines
+```
+
+Safety facts:
+
+- Fake money only.
+- No broker connectivity.
+- No real orders are possible.
+- One application-wide local session exists at a time.
+- One background scanner exists at a time.
+- The scanner universe is intentionally bounded to 40 symbols maximum.
+- The default universe is `SPY, QQQ, DIA, IWM, AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA, JPM, BAC, XOM, CVX, WMT, COST, UNH, CAT`.
+- The scanner runs sequentially to avoid uncontrolled provider requests.
+- Default interval is 15 minutes. Minimum interval is 5 minutes.
+- The computer must remain powered on and awake.
+- The Python process must remain running.
+- Internet access must remain available for live provider data.
+- Session state is in memory only. Stopping the process ends the session.
+- No browser client IDs, cookies, persistence, database, per-tab sessions, or account system exist.
 
 ## Security & Trust
 
