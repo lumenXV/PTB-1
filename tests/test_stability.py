@@ -25,6 +25,7 @@ from ptb1.dashboard import (
     build_dashboard_state,
     create_dashboard_handler,
     render_dashboard_html,
+    render_landing_html,
 )
 from ptb1.engine import EngineFacade, EnginePaperSessionConfig
 from ptb1.historian import PriceBar, load_price_history
@@ -549,6 +550,41 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn("Names in focus", output)
         self.assertIn("Strategy Agreement", output)
 
+    def test_landing_html_ctas_target_application_routes(self) -> None:
+        """The public landing page should route CTAs into the local application."""
+        output = render_landing_html()
+
+        self.assertIn('href="/app"', output)
+        self.assertIn('href="/app/research"', output)
+        self.assertIn('href="/app/paper"', output)
+        self.assertIn("Start Researching", output)
+        self.assertIn("Open Dashboard", output)
+        self.assertIn("Explore Research", output)
+        self.assertIn("Paper Trading", output)
+        self.assertNotIn('href="#"', output)
+
+    def test_dashboard_sidebar_targets_are_real_application_routes(self) -> None:
+        """Sidebar controls should have route targets instead of dead placeholders."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn('data-route="/app"', output)
+        self.assertIn('data-route="/app/research"', output)
+        self.assertIn('data-route="/app/market"', output)
+        self.assertIn('data-route="/app/strategies"', output)
+        self.assertIn('data-route="/app/portfolio"', output)
+        self.assertIn('data-route="/app/paper"', output)
+        self.assertIn('data-route="/app/reports"', output)
+        self.assertNotIn('href="#"', output)
+
+    def test_symbol_search_markup_and_safe_error_state_exist(self) -> None:
+        """Symbol search should be a functional form with safe malformed-symbol handling."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn('id="symbol-search"', output)
+        self.assertIn('id="symbol-search-input"', output)
+        self.assertIn("Enter a valid stock or ETF symbol.", output)
+        self.assertIn("/api/markets?symbols=", output)
+
     def test_cli_parser_accepts_dashboard_flag(self) -> None:
         """The dashboard flag should parse without starting the server."""
         args = build_parser().parse_args(["--dashboard"])
@@ -687,6 +723,30 @@ class DashboardShellTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 400)
         self.assertIn("Malformed JSON", body)
         self.assertNotIn("Traceback", body)
+
+    def test_dashboard_handler_serves_landing_and_app_routes(self) -> None:
+        """The local server should serve public and app routes without blank views."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            bodies = {
+                route: urlopen(f"http://localhost:{port}{route}", timeout=2).read().decode("utf-8")
+                for route in ("/", "/app", "/app/research", "/app/market", "/app/strategies", "/app/portfolio", "/app/paper", "/app/reports")
+            }
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertIn("Markets are complicated", bodies["/"])
+        for route in ("/app", "/app/research", "/app/market", "/app/strategies", "/app/portfolio", "/app/paper", "/app/reports"):
+            self.assertIn("QMR.CO", bodies[route])
+            self.assertIn("Paper Research Account", bodies[route])
 
     def test_paper_api_returns_inactive_default_state(self) -> None:
         """Paper API should not imply a running account exists."""

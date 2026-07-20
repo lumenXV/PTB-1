@@ -14,6 +14,18 @@ from urllib.parse import parse_qs, urlparse
 from ptb1.engine import EngineFacade
 from ptb1.market_data import MarketDataResult, MarketDataStatus, ProviderManager
 from ptb1.snapshots import snapshot_to_dict
+
+APP_ROUTE_MAP = {
+    "/app": "dashboard",
+    "/app/": "dashboard",
+    "/app/research": "research",
+    "/app/market": "markets",
+    "/app/strategies": "strategies",
+    "/app/portfolio": "portfolio",
+    "/app/paper": "paper-trading",
+    "/app/reports": "settings",
+}
+
 from ptb1.operations import VERSION
 from ptb1.security import PrivacyFilter
 
@@ -241,7 +253,10 @@ class DashboardApplication:
                 return 200, self.paper_scanner()
             if path == "/api/paper/events":
                 after_values = query.get("after", [])
-                after_sequence = int(after_values[0]) if after_values else None
+                try:
+                    after_sequence = int(after_values[0]) if after_values else None
+                except ValueError:
+                    return 400, {"error": "Invalid event sequence."}
                 return 200, self.paper_events(after_sequence)
             return 404, {"error": "Not found."}
         except ValueError as exc:
@@ -511,7 +526,7 @@ def _render_design_tokens() -> str:
       font-weight: 900;
     }
     .public-nav, .header-actions { display: inline-flex; align-items: center; gap: 1.8rem; }
-    .public-nav span { color: var(--qmr-text-muted); font-size: 0.86rem; }
+    .public-nav a { color: var(--qmr-text-muted); font-size: 0.86rem; text-decoration: none; }
     .header-actions .ghost-link { color: var(--qmr-text-soft); font-weight: 700; }
     .primary-cta {
       border: 1px solid rgba(56, 164, 255, 0.8);
@@ -521,7 +536,10 @@ def _render_design_tokens() -> str:
       padding: 0.82rem 1.15rem;
       font-weight: 900;
       box-shadow: 0 14px 32px rgba(19, 151, 255, 0.25);
+      text-decoration: none;
     }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1rem; }
+    .hero-actions .secondary { border: 1px solid var(--qmr-border); background: rgba(148,163,184,.08); border-radius: var(--qmr-radius-control); padding: .82rem 1.05rem; text-decoration: none; }
     .shell { min-height: calc(100vh - 64px); }
     .sidebar-kicker {
       color: var(--qmr-text-muted);
@@ -539,14 +557,20 @@ def _render_design_tokens() -> str:
       margin-bottom: 2rem;
     }
     .search-box {
-      max-width: 560px;
+      max-width: 640px;
       width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
       border: 1px solid var(--qmr-border);
       border-radius: var(--qmr-radius-control);
       background: rgba(12, 20, 31, 0.9);
       color: var(--qmr-text-muted);
-      padding: 0.9rem 1rem;
+      padding: 0.45rem 0.55rem 0.45rem 0.9rem;
     }
+    .search-box input { margin: 0; border: 0; background: transparent; padding: 0.45rem; color: var(--qmr-text); }
+    .search-submit { border: 1px solid rgba(56,164,255,.45); background: rgba(56,164,255,.14); color: var(--qmr-blue-strong); border-radius: 7px; padding: .55rem .75rem; font-weight: 800; }
+    a { color: inherit; }
     .market-dot { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--qmr-text-muted); font-size: 0.8rem; text-transform: uppercase; }
     .market-dot::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--qmr-success); box-shadow: 0 0 16px var(--qmr-success); }
     .hero-line { margin-bottom: 1rem; }
@@ -629,6 +653,79 @@ def _render_table(headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]) -
     return f'<div class="table-wrap"><table><thead><tr>{header_html}</tr></thead><tbody>{row_html}</tbody></table></div>'
 
 
+
+def render_landing_html() -> str:
+    """Render the public QMR.CO landing page for the local application."""
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QMR.CO - Quantitative Market Research</title>
+  <style>
+    :root { --bg:#07090c; --panel:#0e1218; --panel2:#111722; --line:#202a37; --muted:#8894a5; --text:#f2f6fb; --blue:#168bff; --green:#37d392; --amber:#ffb84d; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); line-height:1.5; }
+    a { color:inherit; text-decoration:none; }
+    .site-header { height:76px; display:flex; align-items:center; gap:36px; padding:0 max(5vw,28px); border-bottom:1px solid #151b24; position:sticky; top:0; background:#07090ceb; backdrop-filter:blur(14px); z-index:20; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.04em; }
+    .qmark { width:31px; height:31px; border:2px solid var(--blue); border-radius:50%; display:grid; place-items:center; color:var(--blue); box-shadow:0 0 24px #168bff44; }
+    nav { display:flex; gap:30px; margin:auto; }
+    nav a { font-size:14px; color:#aab4c3; }
+    .nav-actions { display:flex; gap:10px; }
+    .primary,.secondary,.ghost { display:inline-flex; align-items:center; justify-content:center; border-radius:9px; padding:11px 17px; border:1px solid transparent; font-weight:800; }
+    .primary { background:var(--blue); box-shadow:0 0 28px #168bff30; }
+    .secondary { border-color:#2a3442; background:#111722; }
+    .ghost { color:#aeb8c5; }
+    .hero { max-width:1440px; margin:auto; min-height:710px; padding:100px 5vw; display:grid; grid-template-columns:1.04fr .96fr; gap:6vw; align-items:center; background:radial-gradient(circle at 70% 40%,#0b32604a,transparent 35%); }
+    .eyebrow { font-size:11px; letter-spacing:.18em; color:#66b5ff; font-weight:900; text-transform:uppercase; }
+    h1 { font-size:clamp(44px,5.2vw,76px); line-height:1.05; letter-spacing:-.04em; margin:18px 0 25px; }
+    h1 span, .lede, .trust, .panel small { color:#8793a3; }
+    .lede { font-size:18px; max-width:680px; }
+    .hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin:30px 0; }
+    .panel { background:linear-gradient(145deg,#111721,#0b0f15); border:1px solid var(--line); border-radius:15px; }
+    .preview { padding:25px; box-shadow:0 25px 80px #0008,0 0 60px #168bff12; }
+    .preview-top,.preview-grid,.signal { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+    .preview-top i { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); }
+    .mini-chart { height:210px; margin:25px -5px 10px; }
+    svg { width:100%; height:100%; }
+    .line { fill:none; stroke:var(--blue); stroke-width:3; filter:drop-shadow(0 0 7px #168bff88); }
+    .area { fill:#168bff22; }
+    .preview-grid { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .preview-grid div { padding:15px; border-right:1px solid var(--line); }
+    .preview-grid div:last-child { border:0; }
+    .preview-grid b,.preview-grid em,.preview-grid span { display:block; }
+    em { color:var(--green); font-style:normal; }
+    .ticker { background:#172c47; color:#80c3ff; font-weight:900; padding:10px; border-radius:8px; }
+    section.info { max-width:1280px; margin:auto; padding:95px 5vw; border-top:1px solid #151c25; }
+    .question-grid,.feature-grid,.price-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    article { background:#0c1016; border:1px solid #1b2430; border-radius:14px; padding:27px; }
+    article p, li { color:#8995a5; }
+    .featured { border-color:#1d76c7; box-shadow:0 15px 60px #168bff16; }
+    footer { border-top:1px solid #1b222c; padding:50px 5vw; color:#7f8c9d; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    @media(max-width:900px){ .site-header{height:auto;padding:18px;align-items:flex-start;flex-direction:column}.site-header nav,.nav-actions{margin:0;flex-wrap:wrap}.hero{grid-template-columns:1fr;padding:60px 20px}.question-grid,.feature-grid,.price-grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="QMR.CO home"><span class="qmark">Q</span><span>QMR.CO</span></a>
+    <nav aria-label="Public navigation"><a href="/#platform">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/#pricing">Pricing</a><a href="/#about">About</a></nav>
+    <div class="nav-actions"><a class="ghost" href="/app">Sign in</a><a class="primary" href="/app">Start researching</a></div>
+  </header>
+  <main>
+    <section class="hero" id="top">
+      <div><p class="eyebrow">Quantitative Market Research</p><h1>Markets are complicated.<br><span>Understanding them should not be.</span></h1><p class="lede">Professional-grade quantitative market research organized into clear, transparent insights for local fake-money research workflows.</p><div class="hero-actions"><a class="primary" href="/app">Start Researching</a><a class="secondary" href="/app">Open Dashboard</a><a class="secondary" href="/app/research">Explore Research</a><a class="secondary" href="/app/paper">Paper Trading</a></div><p class="trust">Research and decision support only. No broker, no real orders, no guaranteed returns.</p></div>
+      <div class="preview panel"><div class="preview-top"><div><small>MARKET POSTURE</small><strong><i></i> Cautiously Bullish</strong></div><span class="secondary">LOCAL RESEARCH</span></div><div class="mini-chart"><svg viewBox="0 0 600 210" preserveAspectRatio="none"><path class="area" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28 L600 210 L0 210Z"/><path class="line" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28"/></svg></div><div class="preview-grid"><div><small>S&P 500</small><b>Latest available</b><em>Provider gated</em></div><div><small>NASDAQ</small><b>Read-only</b><em>Research mode</em></div><div><small>VOLATILITY</small><b>N/A</b><span>Not fabricated</span></div></div><div class="signal"><div class="ticker">AMD</div><div><b>Research workflow ready</b><small>Signals require provider data and Risk Manager approval</small></div><strong>Q</strong></div></div>
+    </section>
+    <section class="info" id="platform"><p class="eyebrow">Clarity, Organized</p><h2>Five questions. One clear view.</h2><div class="question-grid"><article><b>01</b><h3>What happened?</h3><p>See meaningful market activity without the noise.</p></article><article><b>02</b><h3>When did it happen?</h3><p>Understand timing, freshness, and event sequence.</p></article><article><b>03</b><h3>Why did it happen?</h3><p>Separate evidence from inference.</p></article></div></section>
+    <section class="info" id="research"><p class="eyebrow">The Research Stack</p><h2>Serious intelligence. Plainly explained.</h2><div class="feature-grid"><article><h3>Market Research</h3><p>Provider-backed facts and safe empty states.</p></article><article><h3>Strategy Analysis</h3><p>Existing registered strategies remain authoritative.</p></article><article><h3>Paper Trading</h3><p>Fake-money sessions before any future real execution.</p></article></div></section>
+    <section class="info" id="pricing"><p class="eyebrow">Membership</p><h2>Research that grows with you.</h2><div class="price-grid"><article><p>FREE</p><h3>Build your foundation</h3><a class="secondary" href="/app">Start free</a></article><article class="featured"><p>MEMBER</p><h3>Go deeper with context</h3><a class="primary" href="/app">Join the waitlist</a></article><article><p>PREMIUM</p><h3>See the complete picture</h3><a class="secondary" href="/app/research">Request access</a></article></div></section>
+    <section class="info" id="about"><p class="eyebrow">Our Standard</p><h2>Evidence over opinion.</h2><p>Every insight should show its work. Missing data stays visibly missing.</p></section>
+  </main>
+  <footer><div class="brand"><span class="qmark">Q</span><span>QMR.CO</span></div><p>Markets are complicated. Understanding them should not be.</p></footer>
+</body>
+</html>"""
+
 def render_dashboard_html(state: DashboardState) -> str:
     """Render the local dashboard as standalone HTML, CSS, and small local JavaScript."""
     watchlist = "".join(f"<li>{escape(line)}</li>" for line in state.watchlist_lines)
@@ -645,28 +742,28 @@ def render_dashboard_html(state: DashboardState) -> str:
 <body>
   <header class="app-header">
     <div class="brand-lockup"><span class="logo-mark">Q</span><span>QMR.CO</span></div>
-    <div class="public-nav"><span>Platform</span><span>Research</span><span>Strategies</span><span>Pricing</span><span>About</span></div>
-    <div class="header-actions"><span class="ghost-link">Local session</span><span class="primary-cta">Start researching</span></div>
+    <div class="public-nav"><a href="/">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/#pricing">Pricing</a><a href="/#about">About</a></div>
+    <div class="header-actions"><a class="ghost-link" href="/app">Local session</a><a class="primary-cta" href="/app">Start researching</a></div>
   </header>
   <div class="shell">
     <aside>
       <div class="sidebar-kicker">Paper Research Account</div>
       <nav aria-label="Dashboard sections">
-        <button class="active" data-section="dashboard">Overview</button>
-        <button data-section="markets">Market</button>
-        <button data-section="research">Research</button>
-        <button data-section="watchlist">Watchlist</button>
-        <button data-section="strategies">Strategies</button>
-        <button data-section="portfolio">Portfolio</button>
-        <button data-section="paper-trading">Paper Trading</button>
-        <button data-section="security">Risk</button>
-        <button data-section="settings">Reports</button>
+        <button class="active" data-section="dashboard" data-route="/app">Overview</button>
+        <button data-section="markets" data-route="/app/market">Market</button>
+        <button data-section="research" data-route="/app/research">Research</button>
+        <button data-section="watchlist" data-route="/app/market">Watchlist</button>
+        <button data-section="strategies" data-route="/app/strategies">Strategies</button>
+        <button data-section="portfolio" data-route="/app/portfolio">Portfolio</button>
+        <button data-section="paper-trading" data-route="/app/paper">Paper Trading</button>
+        <button data-section="security" data-route="/app/reports">Risk</button>
+        <button data-section="settings" data-route="/app/reports">Reports</button>
       </nav>
-      <div class="sidebar-footer">Public site</div>
+      <a class="sidebar-footer" href="/">Public site</a>
     </aside>
     <main>
       <section class="command-row">
-        <div class="search-box">Search a company, ticker, sector, or question</div>
+        <form class="search-box" id="symbol-search"><input id="symbol-search-input" placeholder="Search a company, ticker, sector, or question" aria-label="Symbol search"><button class="search-submit" type="submit">Research</button></form>
         <div class="market-dot">Market {escape(state.market_status)}</div>
       </section>
       <div class="hero-line">
@@ -689,6 +786,7 @@ def render_dashboard_html(state: DashboardState) -> str:
           <div class="eyebrow">Market Posture</div>
           <div class="posture-title">Cautiously Bullish</div>
           <p>Technology and semiconductor signals are leading, but provider reliability and fake-money risk controls still decide every scanner action.</p>
+          <div class="hero-actions"><a class="primary-cta" href="/app/research">View Research</a><a class="secondary" href="/app/paper">Open Paper Trading</a></div>
         </div>
         <div class="kpi-strip">
           <div class="kpi-card"><div class="kpi-label">Portfolio Value</div><div class="kpi-value">Session gated</div><div class="positive">Fake money only</div></div>
@@ -723,7 +821,7 @@ def render_dashboard_html(state: DashboardState) -> str:
           <article class="card">
             <ul id="dashboard-watchlist" hidden>{watchlist}</ul>
             <div class="empty" hidden>No active live paper session.</div>
-            <div class="asset-header"><div><span class="ticker-badge">AMD</span> <strong>Advanced Micro Devices</strong><p>NASDAQ / Semiconductors</p></div><div><strong>$178.64</strong><div class="positive">+2.83%</div></div></div>
+            <div class="asset-header"><div><a class="ticker-badge" href="/app/research?symbol=AMD">AMD</a> <strong>Advanced Micro Devices</strong><p>NASDAQ / Semiconductors</p></div><div><strong>$178.64</strong><div class="positive">+2.83%</div></div></div>
             <div class="asset-score-grid">
               <div><div class="kpi-label">Research Score</div><strong>82/100</strong></div>
               <div><div class="kpi-label">Confidence</div><strong>74%</strong></div>
@@ -751,7 +849,7 @@ def render_dashboard_html(state: DashboardState) -> str:
           <article class="card">
             <div class="eyebrow">Strategy Agreement</div>
             <h2>4 of 6 agree</h2>
-            <p>Momentum</p><span class="badge blue">Bullish</span>
+            <p>Momentum</p><a class="badge blue" href="/app/strategies">Bullish</a>
           </article>
         </div>
       </section>
@@ -849,7 +947,7 @@ def render_dashboard_html(state: DashboardState) -> str:
       </section>
 
       <section class="section" id="section-settings">
-        <div class="grid"><article class="card full"><h2>Settings</h2><div class="empty">Settings are read-only in this milestone. No accounts, no persistence, no broker connections.</div></article></div>
+        <div class="grid"><article class="card full"><h2>Settings</h2><div class="empty">This reports module is not available yet. No accounts, no persistence, no broker connections.</div></article></div>
       </section>
 
       <footer>QMR.CO local dashboard. No public hosting, no accounts, no persistence, no trade controls.</footer>
@@ -857,12 +955,39 @@ def render_dashboard_html(state: DashboardState) -> str:
   </div>
   <script>
     const sections = document.querySelectorAll('.section');
-    const navButtons = document.querySelectorAll('nav button');
-    function showSection(name) {{
-      sections.forEach(section => section.classList.toggle('active', section.id === `section-${{name}}`));
-      navButtons.forEach(button => button.classList.toggle('active', button.dataset.section === name));
+    const navButtons = document.querySelectorAll('nav button[data-section]');
+    const routeMap = {{
+      '/app': 'dashboard',
+      '/app/': 'dashboard',
+      '/app/research': 'research',
+      '/app/market': 'markets',
+      '/app/strategies': 'strategies',
+      '/app/portfolio': 'portfolio',
+      '/app/paper': 'paper-trading',
+      '/app/reports': 'settings'
+    }};
+    function showSection(name, route = null, push = true) {{
+      const sectionName = name || 'dashboard';
+      sections.forEach(section => section.classList.toggle('active', section.id === `section-${{sectionName}}`));
+      navButtons.forEach(button => button.classList.toggle('active', button.dataset.section === sectionName));
+      if (route && push && window.location.pathname + window.location.search !== route) history.pushState({{section: sectionName}}, '', route);
     }}
-    navButtons.forEach(button => button.addEventListener('click', () => showSection(button.dataset.section)));
+    function applyRoute(push = false) {{
+      const route = window.location.pathname;
+      const section = routeMap[route] || 'dashboard';
+      showSection(section, null, false);
+      if (section === 'research') handleSymbolFromUrl();
+      if (section === 'paper-trading') loadPaperSnapshot();
+    }}
+    navButtons.forEach(button => button.addEventListener('click', () => showSection(button.dataset.section, button.dataset.route, true)));
+    document.querySelectorAll('a[href^="/app"]').forEach(link => link.addEventListener('click', event => {{
+      const url = new URL(link.href);
+      if (url.origin !== window.location.origin) return;
+      event.preventDefault();
+      history.pushState({{}}, '', url.pathname + url.search);
+      applyRoute(false);
+    }}));
+    window.addEventListener('popstate', () => applyRoute(false));
 
     async function api(path, options = {{}}) {{
       const response = await fetch(path, {{
@@ -911,7 +1036,9 @@ def render_dashboard_html(state: DashboardState) -> str:
       await loadWatchlist();
     }});
     api('/api/research').then(data => {{
-      document.getElementById('research-output').innerHTML = `<div class="market-card">Research Engine: ${{data.research_engine}}</div><div class="market-card">Datasets: ${{data.datasets.join(', ') || 'None'}}</div><div class="market-card">Automatic Backtests: ${{data.automatic_backtests}}</div>`;
+      if (!new URLSearchParams(window.location.search).get('symbol')) {{
+        document.getElementById('research-output').innerHTML = `<div class="market-card">Research Engine: ${{data.research_engine}}</div><div class="market-card">Datasets: ${{data.datasets.join(', ') || 'None'}}</div><div class="market-card">Automatic Backtests: ${{data.automatic_backtests}}</div><div class="empty">Search a valid symbol to load provider-backed research availability.</div>`;
+      }}
     }});
     api('/api/strategies').then(data => {{
       document.getElementById('strategies-output').innerHTML = data.strategies.map(item => `<div class="market-card"><div class="symbol">${{item.name}}</div><div>${{item.description}}</div><div>Purpose: ${{item.purpose}}</div><div>Risk: ${{item.risk_level}}</div></div>`).join('');
@@ -919,6 +1046,44 @@ def render_dashboard_html(state: DashboardState) -> str:
     api('/api/security').then(data => {{
       document.getElementById('security-output').innerHTML = `<ul>${{data.principles.map(item => `<li>${{item}}</li>`).join('')}}</ul>`;
     }});
+    function normalizeSearchSymbol(value) {{
+      const symbol = value.trim().toUpperCase();
+      const compact = symbol.replace(/[.-]/g, '');
+      if (!symbol || !/^[A-Z]+$/.test(compact) || compact.length > 10) throw new Error('Enter a valid stock or ETF symbol.');
+      return symbol;
+    }}
+    async function runSymbolSearch(rawValue, pushRoute = true) {{
+      const output = document.getElementById('research-output');
+      let symbol;
+      try {{
+        symbol = normalizeSearchSymbol(rawValue);
+      }} catch (error) {{
+        output.innerHTML = `<div class="empty">${{error.message}}</div>`;
+        showSection('research', '/app/research', pushRoute);
+        return;
+      }}
+      showSection('research', `/app/research?symbol=${{encodeURIComponent(symbol)}}`, pushRoute);
+      output.innerHTML = `<div class="empty">Loading research state for ${{symbol}}...</div>`;
+      try {{
+        const data = await api(`/api/markets?symbols=${{encodeURIComponent(symbol)}}`);
+        const item = data.symbols && data.symbols[0];
+        if (!item) {{ output.innerHTML = `<div class="empty">No data available for ${{symbol}}.</div>`; return; }}
+        const price = item.last_price === null ? 'N/A' : formatMoney(item.last_price);
+        output.innerHTML = `<div class="market-card"><div class="symbol">${{symbol}}</div><div>Status: ${{item.status}}</div><div>Provider: ${{item.provider_used || 'N/A'}}</div><div>Latest Price: ${{price}}</div><div>${{item.message || 'Provider response received.'}}</div><div class="empty">Research execution remains engine-owned. No browser indicator or signal calculation was performed.</div></div>`;
+      }} catch (error) {{
+        output.innerHTML = `<div class="empty">Unable to load research state for ${{symbol}}.</div>`;
+      }}
+    }}
+    function handleSymbolFromUrl() {{
+      const params = new URLSearchParams(window.location.search);
+      const symbol = params.get('symbol');
+      if (symbol) runSymbolSearch(symbol, false);
+    }}
+    document.getElementById('symbol-search').addEventListener('submit', event => {{
+      event.preventDefault();
+      runSymbolSearch(document.getElementById('symbol-search-input').value, true);
+    }});
+
     function formatMoney(value) {{
       return value === null || value === undefined ? 'N/A' : `$${{Number(value).toFixed(2)}}`;
     }}
@@ -966,14 +1131,23 @@ def render_dashboard_html(state: DashboardState) -> str:
       document.getElementById('paper-control-message').textContent = 'Stop request processed.';
       renderSnapshot(data);
     }}
+    async function pollPaperState() {{
+      const sessionData = await api('/api/paper/session');
+      const scannerData = await api('/api/paper/scanner');
+      await api('/api/paper/events?after=0');
+      renderSnapshot(sessionData);
+      if (scannerData.scanner) document.getElementById('paper-control-message').textContent = scannerData.scanner.message || document.getElementById('paper-control-message').textContent;
+    }}
     document.getElementById('start-fake-session').addEventListener('click', startFakeSession);
     document.getElementById('stop-fake-session').addEventListener('click', stopFakeSession);
     api('/api/paper').then(data => {{
       document.getElementById('portfolio-output').textContent = data.active ? `Portfolio Value: ${{data.portfolio_value}}` : `${{data.message}} ${{data.default_cash_note}}`;
     }});
+    applyRoute(false);
     loadPaperSnapshot();
     loadStatus();
     loadWatchlist();
+    setInterval(pollPaperState, 5000);
   </script>
 </body>
 </html>"""
@@ -1011,6 +1185,9 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
             """Return dashboard HTML or safe JSON."""
             parsed = urlparse(self.path)
             if parsed.path in ("/", "/index.html"):
+                _write_html(self, render_landing_html())
+                return
+            if parsed.path in APP_ROUTE_MAP:
                 _write_html(self, render_dashboard_html(application.build_state()))
                 return
             if parsed.path.startswith("/api/"):

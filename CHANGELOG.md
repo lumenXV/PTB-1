@@ -4,6 +4,16 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 8.5.1: Functional Navigation and Landing-Page Integration
+
+- Added a public QMR.CO landing page at `/` using the supplied landing-page design as the source reference.
+- Moved the local application dashboard to `/app` while preserving existing dashboard APIs.
+- Added direct app routes for research, market, strategies, portfolio, paper trading, and reports views.
+- Made landing CTAs, app top navigation, sidebar navigation, symbol search, and paper-session controls route-aware and functional.
+- Added conservative paper snapshot polling for session, scanner, and event state.
+- Added tests for landing/app routes, CTA targets, sidebar targets, no dead `href="#"` placeholders, symbol-search safety, and existing API compatibility.
+- Preserved no-real-trading behavior, fake-money warnings, EngineFacade boundaries, and no broker controls.
+
 ## Dashboard Visual Reference Pass
 
 - Restyled the local dashboard to more closely match the provided premium QMR.CO dark research-console reference.

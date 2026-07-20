@@ -20,6 +20,7 @@ Milestone 8 adds a localhost-only read-only web dashboard shell for QMR.CO. It i
 Milestone 8.1 makes the local dashboard functional with read-only JSON APIs, single-page navigation, market cards, and a dashboard-local in-memory watchlist. It still does not place trades, start sessions, persist data, or mutate core engine state.
 Milestone 8.2 cleans up the dashboard visual system with centralized design tokens, reusable render helpers, premium dark styling, responsive layout, clearer empty states, and consistent cards, tables, forms, badges, and safety messaging. It does not change dashboard APIs or engine behavior.
 The accelerated dashboard paper scanner vertical slice adds a website-operated fake-money session through `EngineFacade` and `PaperSessionController`. It uses one application-wide in-memory session, one sequential background scanner, a bounded 20-symbol default universe, a 15-minute default interval, and a 5-minute minimum interval. It remains fake-money only: no broker, no real orders, no database, no persistence, no cookies, no browser client IDs, and no per-tab sessions.
+Milestone 8.5.1 adds a functional local application shell: `/` serves the public landing page, `/app` serves the dashboard, and `/app/research`, `/app/market`, `/app/strategies`, `/app/portfolio`, `/app/paper`, and `/app/reports` deep-link into application views. Sidebar navigation, landing CTAs, symbol search, and paper-session controls are functional while unfinished modules show deliberate empty states.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -43,10 +44,23 @@ Launch the Operations Center:
 python -m ptb1
 ```
 
-Launch the local read-only dashboard:
+Launch the local application server:
 
 ```powershell
 python -m ptb1 --dashboard
+```
+
+Local routes:
+
+```text
+/                  Public landing page
+/app               QMR.CO dashboard overview
+/app/research      Research view
+/app/market        Market/watchlist view
+/app/strategies    Strategies view
+/app/portfolio     Portfolio view
+/app/paper         Fake-money paper trading view
+/app/reports       Reports placeholder
 ```
 
 Local dashboard API routes:

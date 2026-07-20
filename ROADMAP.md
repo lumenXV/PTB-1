@@ -572,6 +572,30 @@ Out of scope:
 
 - Real trading, broker connectivity, Robinhood, wallets, accounts, login, cookies, browser client IDs, persistence, database, cloud hosting, AI/ML, new strategies, and full-market scanning.
 
+
+## Milestone 8.5.1: Functional Navigation and Landing-Page Integration
+
+Status: complete.
+
+Goal: make QMR.CO feel like a functional local application rather than a visual-only dashboard.
+
+Implemented:
+
+- Public landing page served at `/`.
+- Dashboard application served at `/app`.
+- Direct application routes for `/app/research`, `/app/market`, `/app/strategies`, `/app/portfolio`, `/app/paper`, and `/app/reports`.
+- Landing-page CTAs that route into the application.
+- Sidebar navigation with route targets, active state, direct-link refresh support, and Back/Forward support.
+- Functional symbol search that validates stock/ETF symbols, normalizes input, routes to research, and uses existing dashboard APIs.
+- Conservative polling of paper session, scanner, and event snapshots.
+- Paper-session controls remain fake-money only and use existing paper APIs.
+
+Still unavailable:
+
+- Full research module execution from the browser.
+- Reports generation.
+- Accounts, authentication, persistence, broker connectivity, real orders, and real trading.
+
 ## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.
