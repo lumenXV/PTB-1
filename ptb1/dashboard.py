@@ -23,8 +23,11 @@ APP_ROUTE_MAP = {
     "/app/strategies": "strategies",
     "/app/portfolio": "portfolio",
     "/app/paper": "paper-trading",
+    "/app/risk": "security",
     "/app/reports": "settings",
 }
+
+PUBLIC_ROUTES = {"/platform", "/about", "/membership", "/pricing", "/sign-in", "/learn/beginner", "/learn/intermediate", "/learn/advanced"}
 
 from ptb1.operations import VERSION
 from ptb1.security import PrivacyFilter
@@ -572,12 +575,15 @@ def _render_design_tokens() -> str:
     .search-submit { border: 1px solid rgba(56,164,255,.45); background: rgba(56,164,255,.14); color: var(--qmr-blue-strong); border-radius: 7px; padding: .55rem .75rem; font-weight: 800; }
     a { color: inherit; }
     .market-dot { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--qmr-text-muted); font-size: 0.8rem; text-transform: uppercase; }
-    .market-dot::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--qmr-success); box-shadow: 0 0 16px var(--qmr-success); }
+    .market-dot::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #64748b; box-shadow: 0 0 12px rgba(100,116,139,.45); }
+    .market-dot.open::before { background: var(--qmr-success); box-shadow: 0 0 16px var(--qmr-success); }
+    .market-dot.closed::before { background: var(--qmr-danger); box-shadow: 0 0 16px rgba(255,84,112,.65); }
+    .market-dot.unknown::before { background: #64748b; box-shadow: 0 0 12px rgba(100,116,139,.45); }
     .hero-line { margin-bottom: 1rem; }
     .hero-line h1 { font-size: 1.7rem; margin: 0.55rem 0 1.25rem; }
     .hero-line h1 span { color: var(--qmr-text-muted); font-weight: 600; }
     .experience-toggle { margin-left: auto; display: inline-flex; gap: 0.25rem; border: 1px solid var(--qmr-border); border-radius: var(--qmr-radius-control); padding: 0.25rem; background: rgba(12, 20, 31, 0.78); }
-    .experience-toggle span { padding: 0.45rem 0.65rem; color: var(--qmr-text-muted); border-radius: 6px; font-size: 0.75rem; }
+    .experience-toggle a { padding: 0.45rem 0.65rem; color: var(--qmr-text-muted); border-radius: 6px; font-size: 0.75rem; text-decoration: none; }
     .experience-toggle .active { color: var(--qmr-blue-strong); background: rgba(56, 164, 255, 0.14); }
     .posture-card {
       border: 1px solid var(--qmr-border);
@@ -654,83 +660,134 @@ def _render_table(headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]) -
 
 
 
-def render_landing_html() -> str:
-    """Render the public QMR.CO landing page for the local application."""
-    return """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QMR.CO - Quantitative Market Research</title>
-  <style>
-    :root { --bg:#07090c; --panel:#0e1218; --panel2:#111722; --line:#202a37; --muted:#8894a5; --text:#f2f6fb; --blue:#168bff; --green:#37d392; --amber:#ffb84d; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+
+def _render_public_styles() -> str:
+    """Render shared public-site styles."""
+    return """<style>
+    :root { --bg:#07090c; --panel:#0e1218; --panel2:#111722; --line:#202a37; --muted:#8894a5; --text:#f2f6fb; --blue:#168bff; --green:#37d392; --red:#ff6874; --amber:#ffb84d; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--text); line-height:1.5; }
     a { color:inherit; text-decoration:none; }
-    .site-header { height:76px; display:flex; align-items:center; gap:36px; padding:0 max(5vw,28px); border-bottom:1px solid #151b24; position:sticky; top:0; background:#07090ceb; backdrop-filter:blur(14px); z-index:20; }
+    .site-header { min-height:76px; display:flex; align-items:center; gap:36px; padding:0 max(5vw,28px); border-bottom:1px solid #151b24; position:sticky; top:0; background:#07090ceb; backdrop-filter:blur(14px); z-index:20; }
     .brand { display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.04em; }
     .qmark { width:31px; height:31px; border:2px solid var(--blue); border-radius:50%; display:grid; place-items:center; color:var(--blue); box-shadow:0 0 24px #168bff44; }
     nav { display:flex; gap:30px; margin:auto; }
     nav a { font-size:14px; color:#aab4c3; }
     .nav-actions { display:flex; gap:10px; }
-    .primary,.secondary,.ghost { display:inline-flex; align-items:center; justify-content:center; border-radius:9px; padding:11px 17px; border:1px solid transparent; font-weight:800; }
+    .primary,.secondary,.ghost,.disabled { display:inline-flex; align-items:center; justify-content:center; border-radius:9px; padding:11px 17px; border:1px solid transparent; font-weight:800; }
     .primary { background:var(--blue); box-shadow:0 0 28px #168bff30; }
     .secondary { border-color:#2a3442; background:#111722; }
     .ghost { color:#aeb8c5; }
-    .hero { max-width:1440px; margin:auto; min-height:710px; padding:100px 5vw; display:grid; grid-template-columns:1.04fr .96fr; gap:6vw; align-items:center; background:radial-gradient(circle at 70% 40%,#0b32604a,transparent 35%); }
+    .disabled { color:#7f8c9d; border-color:#29313d; background:#111722; cursor:not-allowed; }
+    .hero { max-width:1440px; margin:auto; min-height:610px; padding:90px 5vw; display:grid; grid-template-columns:1.04fr .96fr; gap:6vw; align-items:center; background:radial-gradient(circle at 70% 40%,#0b32604a,transparent 35%); }
     .eyebrow { font-size:11px; letter-spacing:.18em; color:#66b5ff; font-weight:900; text-transform:uppercase; }
-    h1 { font-size:clamp(44px,5.2vw,76px); line-height:1.05; letter-spacing:-.04em; margin:18px 0 25px; }
-    h1 span, .lede, .trust, .panel small { color:#8793a3; }
-    .lede { font-size:18px; max-width:680px; }
+    h1 { font-size:clamp(42px,5vw,72px); line-height:1.05; letter-spacing:-.04em; margin:18px 0 25px; }
+    h2 { font-size:clamp(30px,3vw,46px); letter-spacing:-.03em; margin:8px 0 22px; }
+    h1 span, .lede, .trust, .muted, article p, li { color:#8793a3; }
+    .lede { font-size:18px; max-width:760px; }
     .hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin:30px 0; }
-    .panel { background:linear-gradient(145deg,#111721,#0b0f15); border:1px solid var(--line); border-radius:15px; }
-    .preview { padding:25px; box-shadow:0 25px 80px #0008,0 0 60px #168bff12; }
-    .preview-top,.preview-grid,.signal { display:flex; justify-content:space-between; align-items:center; gap:14px; }
-    .preview-top i { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); }
+    .panel, article { background:linear-gradient(145deg,#111721,#0b0f15); border:1px solid var(--line); border-radius:15px; }
+    .preview, article { padding:25px; }
+    .preview { box-shadow:0 25px 80px #0008,0 0 60px #168bff12; }
     .mini-chart { height:210px; margin:25px -5px 10px; }
     svg { width:100%; height:100%; }
     .line { fill:none; stroke:var(--blue); stroke-width:3; filter:drop-shadow(0 0 7px #168bff88); }
     .area { fill:#168bff22; }
-    .preview-grid { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-    .preview-grid div { padding:15px; border-right:1px solid var(--line); }
-    .preview-grid div:last-child { border:0; }
-    .preview-grid b,.preview-grid em,.preview-grid span { display:block; }
-    em { color:var(--green); font-style:normal; }
-    .ticker { background:#172c47; color:#80c3ff; font-weight:900; padding:10px; border-radius:8px; }
-    section.info { max-width:1280px; margin:auto; padding:95px 5vw; border-top:1px solid #151c25; }
-    .question-grid,.feature-grid,.price-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-    article { background:#0c1016; border:1px solid #1b2430; border-radius:14px; padding:27px; }
-    article p, li { color:#8995a5; }
+    .info { max-width:1280px; margin:auto; padding:76px 5vw; border-top:1px solid #151c25; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .two { grid-template-columns:repeat(2,1fr); }
     .featured { border-color:#1d76c7; box-shadow:0 15px 60px #168bff16; }
+    .price { font-size:2rem; font-weight:900; }
+    table { width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }
+    th,td { border:1px solid var(--line); padding:14px; text-align:left; }
+    th { background:#111722; color:#c9d6ea; }
     footer { border-top:1px solid #1b222c; padding:50px 5vw; color:#7f8c9d; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
-    @media(max-width:900px){ .site-header{height:auto;padding:18px;align-items:flex-start;flex-direction:column}.site-header nav,.nav-actions{margin:0;flex-wrap:wrap}.hero{grid-template-columns:1fr;padding:60px 20px}.question-grid,.feature-grid,.price-grid{grid-template-columns:1fr} }
-  </style>
-</head>
-<body>
-  <header class="site-header">
-    <a class="brand" href="/" aria-label="QMR.CO home"><span class="qmark">Q</span><span>QMR.CO</span></a>
-    <nav aria-label="Public navigation"><a href="/#platform">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/#pricing">Pricing</a><a href="/#about">About</a></nav>
-    <div class="nav-actions"><a class="ghost" href="/app">Sign in</a><a class="primary" href="/app">Start researching</a></div>
-  </header>
-  <main>
-    <section class="hero" id="top">
-      <div><p class="eyebrow">Quantitative Market Research</p><h1>Markets are complicated.<br><span>Understanding them should not be.</span></h1><p class="lede">Professional-grade quantitative market research organized into clear, transparent insights for local fake-money research workflows.</p><div class="hero-actions"><a class="primary" href="/app">Start Researching</a><a class="secondary" href="/app">Open Dashboard</a><a class="secondary" href="/app/research">Explore Research</a><a class="secondary" href="/app/paper">Paper Trading</a></div><p class="trust">Research and decision support only. No broker, no real orders, no guaranteed returns.</p></div>
-      <div class="preview panel"><div class="preview-top"><div><small>MARKET POSTURE</small><strong><i></i> Cautiously Bullish</strong></div><span class="secondary">LOCAL RESEARCH</span></div><div class="mini-chart"><svg viewBox="0 0 600 210" preserveAspectRatio="none"><path class="area" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28 L600 210 L0 210Z"/><path class="line" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28"/></svg></div><div class="preview-grid"><div><small>S&P 500</small><b>Latest available</b><em>Provider gated</em></div><div><small>NASDAQ</small><b>Read-only</b><em>Research mode</em></div><div><small>VOLATILITY</small><b>N/A</b><span>Not fabricated</span></div></div><div class="signal"><div class="ticker">AMD</div><div><b>Research workflow ready</b><small>Signals require provider data and Risk Manager approval</small></div><strong>Q</strong></div></div>
-    </section>
-    <section class="info" id="platform"><p class="eyebrow">Clarity, Organized</p><h2>Five questions. One clear view.</h2><div class="question-grid"><article><b>01</b><h3>What happened?</h3><p>See meaningful market activity without the noise.</p></article><article><b>02</b><h3>When did it happen?</h3><p>Understand timing, freshness, and event sequence.</p></article><article><b>03</b><h3>Why did it happen?</h3><p>Separate evidence from inference.</p></article></div></section>
-    <section class="info" id="research"><p class="eyebrow">The Research Stack</p><h2>Serious intelligence. Plainly explained.</h2><div class="feature-grid"><article><h3>Market Research</h3><p>Provider-backed facts and safe empty states.</p></article><article><h3>Strategy Analysis</h3><p>Existing registered strategies remain authoritative.</p></article><article><h3>Paper Trading</h3><p>Fake-money sessions before any future real execution.</p></article></div></section>
-    <section class="info" id="pricing"><p class="eyebrow">Membership</p><h2>Research that grows with you.</h2><div class="price-grid"><article><p>FREE</p><h3>Build your foundation</h3><a class="secondary" href="/app">Start free</a></article><article class="featured"><p>MEMBER</p><h3>Go deeper with context</h3><a class="primary" href="/app">Join the waitlist</a></article><article><p>PREMIUM</p><h3>See the complete picture</h3><a class="secondary" href="/app/research">Request access</a></article></div></section>
-    <section class="info" id="about"><p class="eyebrow">Our Standard</p><h2>Evidence over opinion.</h2><p>Every insight should show its work. Missing data stays visibly missing.</p></section>
-  </main>
-  <footer><div class="brand"><span class="qmark">Q</span><span>QMR.CO</span></div><p>Markets are complicated. Understanding them should not be.</p></footer>
-</body>
-</html>"""
+    @media(max-width:900px){ .site-header{height:auto;padding:18px;align-items:flex-start;flex-direction:column}.site-header nav,.nav-actions{margin:0;flex-wrap:wrap}.hero,.grid,.two{grid-template-columns:1fr}.hero{padding:60px 20px}.info{padding:60px 20px} table{font-size:.9rem} }
+  </style>"""
+
+
+def _public_header() -> str:
+    """Render public-site header with valid routes only."""
+    return """<header class="site-header"><a class="brand" href="/" aria-label="QMR.CO home"><span class="qmark">Q</span><span>QMR.CO</span></a><nav aria-label="Public navigation"><a href="/platform">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/membership">Membership</a><a href="/about">About</a></nav><div class="nav-actions"><a class="ghost" href="/sign-in">Sign In - Coming Soon</a><a class="primary" href="/app">Start researching</a></div></header>"""
+
+
+def _public_footer() -> str:
+    """Render public-site footer."""
+    return """<footer><div class="brand"><span class="qmark">Q</span><span>QMR.CO</span></div><p>Markets are complicated. Understanding them should not be.</p></footer>"""
+
+
+def _public_page(title: str, body: str) -> str:
+    """Render a complete public content page."""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)} | QMR.CO</title>{_render_public_styles()}</head><body>{_public_header()}<main>{body}</main>{_public_footer()}</body></html>"""
+
+
+def render_platform_html() -> str:
+    """Render the product-focused platform page."""
+    body = """<section class="info"><p class="eyebrow">Platform</p><h1>QMR.CO Research Workflow</h1><p class="lede">QMR.CO organizes market data, strategy evidence, risk context, fake-money validation, and explainable reports into one local research application.</p><div class="grid"><article><h3>Market Research</h3><p>Provider-backed market state and clear unavailable-data labels.</p></article><article><h3>Research Cards</h3><p>Evidence, uncertainty, strategy context, and plain-language explanations.</p></article><article><h3>Strategy Analysis</h3><p>Registered strategies remain backend-owned and comparable.</p></article><article><h3>Portfolio Intelligence</h3><p>Future allocation, exposure, and portfolio state summaries.</p></article><article><h3>Risk Analysis</h3><p>Drawdown, concentration, volatility, correlation, and methodology explanations.</p></article><article><h3>Paper Trading</h3><p>Fake-money validation before any future financial integration.</p></article><article><h3>Explainable Intelligence</h3><p>Readable explanations without browser-side signal calculation.</p></article><article><h3>Reports</h3><p>Planned research summaries and audit-friendly outputs.</p></article></div></section>"""
+    return _public_page("Platform", body)
+
+
+def render_about_html() -> str:
+    """Render the dedicated company About page."""
+    body = """<section class="info"><p class="eyebrow">About QMR.CO</p><h1>Markets are complicated. Understanding them should not be.</h1><p class="lede">QMR.CO exists to make quantitative market research understandable, transparent, and accessible. We help investors understand why research reaches a conclusion instead of simply telling them what to do.</p><div class="grid two"><article><h3>Mission</h3><p>Make disciplined market research easier to learn, validate, and explain without pretending research is a guarantee.</p></article><article><h3>Our philosophy</h3><ul><li>Explainable research</li><li>Investor education</li><li>Transparency about evidence and uncertainty</li><li>Privacy and user ownership</li><li>Fake-money validation before any future financial integrations</li><li>No sale or rental of user information</li><li>No promises of guaranteed returns</li></ul></article><article><h3>Research platform, not a broker</h3><p>QMR.CO is a research platform. It is not a broker, trading service, investment adviser, or live-order system. The current application uses fake-money paper research only.</p></article></div></section><section class="info"><p class="eyebrow">A note from the Founder</p><article><h2>Jeffery M.</h2><p>I am the founder, Jeffery M.</p><p>I spent a great deal of my time trying to understand what no one was willing to teach us.</p><p>I have had people ask me many times how to get into investing, but without the right knowledge, context, and market sentiment, it can become a daunting task.</p><p>With QMR.CO, we strive to make this easier in every way we can.</p><p>We are a small team with big dreams.</p><p>Thank you for growing with us.</p></article></section>"""
+    return _public_page("About", body)
+
+
+def render_sign_in_html() -> str:
+    """Render the deliberate sign-in unavailable page."""
+    body = """<section class="info"><p class="eyebrow">Coming Soon</p><h1>Sign In is coming soon.</h1><p class="lede">QMR.CO accounts are not available during this development stage.</p><p class="muted">No email/password form, OAuth flow, account database, or login persistence exists yet.</p><a class="secondary" href="/app">Return to the local application</a></section>"""
+    return _public_page("Sign In Coming Soon", body)
+
+
+def render_learning_html(level: str) -> str:
+    """Render one deliberate learning-path page."""
+    paths = {
+        "beginner": ("Beginner Learning Path", ["What a stock is", "What an ETF is", "Price versus value", "Market risk", "Diversification", "Research versus prediction", "Why paper trading matters"]),
+        "intermediate": ("Intermediate Learning Path", ["Technical indicators", "Fundamental context", "Market sentiment", "Volatility", "Drawdowns", "Position sizing", "Strategy comparison", "Portfolio concentration"]),
+        "advanced": ("Advanced Learning Path", ["Multi-strategy agreement", "Correlation", "Regime analysis", "Risk-adjusted performance", "Backtesting limitations", "Overfitting", "Data quality", "Research confidence"]),
+    }
+    title, items = paths[level]
+    cards = "".join(f"<article><h3>{escape(item)}</h3><p>Educational overview coming through QMR.CO Learning Mode. This is not personalized financial advice.</p></article>" for item in items)
+    intro = "Begin here with what a stock or ETF represents, how market prices move, and why paper research matters." if level == "beginner" else "Build deeper research habits with market context, strategy comparison, and risk language." if level == "intermediate" else "Study research limitations, drawdown, Sharpe ratio, correlation, and confidence without treating any metric as certainty."
+    body = f"""<section class="info"><p class="eyebrow">Learning Mode</p><h1>{escape(title)}</h1><p class="lede">Structured education for research literacy. {escape(intro)} This content is informational and not personalized financial advice.</p><div class="grid">{cards}</div></section>"""
+    return _public_page(title, body)
+
+
+def render_membership_html() -> str:
+    """Render membership pricing without payment processing."""
+    body = """<section class="info"><p class="eyebrow">Membership</p><h1>Research that grows with you.</h1><p class="lede">Payments are not implemented yet. Membership CTAs are informational during this development stage.</p><div class="grid"><article><p class="eyebrow">Free</p><h2>$0/month</h2><h3>Learn the market.</h3><ul><li>2 research strategies</li><li>Basic market posture</li><li>Basic research cards</li><li>Limited watchlist</li><li>Beginner learning path</li><li>Limited paper-research access</li><li>Community and development updates</li></ul><a class="secondary" href="/app">Explore Free</a></article><article class="featured"><p class="eyebrow">Member</p><h2>$35.99/month</h2><h3>Research with confidence.</h3><ul><li>6 research strategies</li><li>Expanded research cards</li><li>Strategy comparisons</li><li>Portfolio Intelligence</li><li>Risk summaries</li><li>Paper Trading</li><li>Larger watchlists</li><li>Intermediate learning path</li><li>Advanced market summaries</li><li>Priority product updates</li></ul><span class="disabled">Coming Soon</span></article><article><p class="eyebrow">Premium</p><h2>$49.99/month</h2><p>Planned standard price: $69.99/month</p><h3>Unlock the full QMR.CO research engine.</h3><ul><li>12 research strategies</li><li>Full explainable research cards</li><li>Multi-strategy agreement</li><li>Portfolio Intelligence+</li><li>Advanced risk analysis</li><li>Paper Trading+</li><li>Research reports</li><li>Advanced learning path</li><li>Early feature access</li><li>Highest research update priority</li><li>Expanded watchlists</li></ul><span class="disabled">Coming Soon</span></article></div></section><section class="info"><p class="eyebrow">Comparison</p><h2>Feature comparison</h2><table><thead><tr><th>Feature</th><th>Free</th><th>Member</th><th>Premium</th></tr></thead><tbody><tr><td>Research strategies</td><td>2</td><td>6</td><td>12</td></tr><tr><td>Research cards</td><td>Basic</td><td>Expanded</td><td>Full explainable</td></tr><tr><td>Portfolio Intelligence</td><td>Unavailable</td><td>Included</td><td>Portfolio Intelligence+</td></tr><tr><td>Risk analysis</td><td>Basic summaries</td><td>Risk summaries</td><td>Advanced risk analysis</td></tr><tr><td>Learning path</td><td>Beginner</td><td>Intermediate</td><td>Advanced</td></tr><tr><td>Live trading</td><td>No</td><td>No</td><td>No</td></tr><tr><td>Broker connection</td><td>No</td><td>No</td><td>No</td></tr></tbody></table></section><section class="info"><h2>Why subscribe?</h2><p class="lede">QMR.CO does not sell stock picks or promises. Membership unlocks deeper research, additional strategies, advanced portfolio analysis, explainable insights, and helps support continued development of a privacy-first research platform.</p><p class="lede">We do not sell or rent user data, and we do not intend to build the platform around invasive advertising.</p><p class="muted">No tier enables live trading, broker connection, guaranteed profits, personalized financial advice, or automated execution.</p></section>"""
+    return _public_page("Membership", body)
+
+
+def render_public_route(path: str) -> str:
+    """Render one public local route."""
+    if path == "/platform":
+        return render_platform_html()
+    if path == "/about":
+        return render_about_html()
+    if path in ("/membership", "/pricing"):
+        return render_membership_html()
+    if path == "/sign-in":
+        return render_sign_in_html()
+    if path == "/learn/beginner":
+        return render_learning_html("beginner")
+    if path == "/learn/intermediate":
+        return render_learning_html("intermediate")
+    if path == "/learn/advanced":
+        return render_learning_html("advanced")
+    return render_landing_html()
+
+def render_landing_html() -> str:
+    """Render the public QMR.CO landing page for the local application."""
+    body = """<section class="hero" id="top"><div><p class="eyebrow">Quantitative Market Research</p><h1>Markets are complicated.<br><span>Understanding them should not be.</span></h1><p class="lede">Professional-grade quantitative market research organized into clear, transparent insights for local fake-money research workflows.</p><div class="hero-actions"><a class="primary" href="/app">Start Researching</a><a class="secondary" href="/app">Open Dashboard</a><a class="secondary" href="/app/research">Explore Research</a><a class="secondary" href="/app/paper">Paper Trading</a></div><p class="trust">Research and decision support only. No broker, no real orders, no guaranteed returns.</p></div><div class="preview panel"><p class="eyebrow">Market Posture</p><h2>Cautiously Bullish</h2><p class="muted">Preview only. Live research values appear only when backend data is available.</p><div class="mini-chart"><svg viewBox="0 0 600 210" preserveAspectRatio="none"><path class="area" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28 L600 210 L0 210Z"/><path class="line" d="M0 175 C55 156 80 183 130 141 S220 137 250 110 S310 129 355 90 S435 110 470 58 S540 80 600 28"/></svg></div><article><h3>Research workflow ready</h3><p>Signals require provider data, backend strategies, and Risk Manager approval.</p></article></div></section><section class="info"><p class="eyebrow">Clarity, Organized</p><h2>Five questions. One clear view.</h2><div class="grid"><article><b>01</b><h3>What happened?</h3><p>See meaningful market activity without the noise.</p></article><article><b>02</b><h3>When did it happen?</h3><p>Understand timing, freshness, and event sequence.</p></article><article><b>03</b><h3>Why did it happen?</h3><p>Separate evidence from inference.</p></article></div></section><section class="info"><p class="eyebrow">The Research Stack</p><h2>Serious intelligence. Plainly explained.</h2><div class="grid"><article><h3>Market Research</h3><p>Provider-backed facts and safe empty states.</p></article><article><h3>Strategy Analysis</h3><p>Existing registered strategies remain authoritative.</p></article><article><h3>Paper Trading</h3><p>Fake-money sessions before any future real execution.</p></article></div></section><section class="info"><p class="eyebrow">Membership</p><h2>Research that grows with you.</h2><div class="grid"><article><p>Free</p><h3>Learn the market.</h3><a class="secondary" href="/membership">Explore Free</a></article><article class="featured"><p>Member</p><h3>Research with confidence.</h3><a class="secondary" href="/membership">Coming Soon</a></article><article><p>Premium</p><h3>Unlock the full research engine.</h3><a class="secondary" href="/membership">Coming Soon</a></article></div></section>"""
+    return _public_page("Quantitative Market Research", body)
 
 def render_dashboard_html(state: DashboardState) -> str:
     """Render the local dashboard as standalone HTML, CSS, and small local JavaScript."""
     watchlist = "".join(f"<li>{escape(line)}</li>" for line in state.watchlist_lines)
     paper_summary = _render_paper_summary(state.paper_summary)
     live_summary = _render_live_paper_summary(state.live_paper_summary)
+    market_indicator = _market_status_indicator(state.market_status)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -742,8 +799,8 @@ def render_dashboard_html(state: DashboardState) -> str:
 <body>
   <header class="app-header">
     <div class="brand-lockup"><span class="logo-mark">Q</span><span>QMR.CO</span></div>
-    <div class="public-nav"><a href="/">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/#pricing">Pricing</a><a href="/#about">About</a></div>
-    <div class="header-actions"><a class="ghost-link" href="/app">Local session</a><a class="primary-cta" href="/app">Start researching</a></div>
+    <div class="public-nav"><a href="/">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/membership">Membership</a><a href="/about">About</a></div>
+    <div class="header-actions"><a class="ghost-link" href="/sign-in">Sign In - Coming Soon</a><a class="primary-cta" href="/app">Start researching</a></div>
   </header>
   <div class="shell">
     <aside>
@@ -756,7 +813,7 @@ def render_dashboard_html(state: DashboardState) -> str:
         <button data-section="strategies" data-route="/app/strategies">Strategies</button>
         <button data-section="portfolio" data-route="/app/portfolio">Portfolio</button>
         <button data-section="paper-trading" data-route="/app/paper">Paper Trading</button>
-        <button data-section="security" data-route="/app/reports">Risk</button>
+        <button data-section="security" data-route="/app/risk">Risk</button>
         <button data-section="settings" data-route="/app/reports">Reports</button>
       </nav>
       <a class="sidebar-footer" href="/">Public site</a>
@@ -764,7 +821,7 @@ def render_dashboard_html(state: DashboardState) -> str:
     <main>
       <section class="command-row">
         <form class="search-box" id="symbol-search"><input id="symbol-search-input" placeholder="Search a company, ticker, sector, or question" aria-label="Symbol search"><button class="search-submit" type="submit">Research</button></form>
-        <div class="market-dot">Market {escape(state.market_status)}</div>
+        <div class="market-dot {market_indicator[0]}">{market_indicator[1]}</div>
       </section>
       <div class="hero-line">
         <span class="badge blue">Paper Mode</span>
@@ -778,7 +835,7 @@ def render_dashboard_html(state: DashboardState) -> str:
         <span class="badge red">No real trading</span>
         <span class="badge red">No broker connected</span>
         <span class="status-pill" id="top-status">Provider Manager: {escape(state.provider_manager_status)}</span>
-        <span class="experience-toggle"><span>Beginner</span><span class="active">Intermediate</span><span>Advanced</span></span>
+        <span class="experience-toggle"><a href="/learn/beginner">Beginner</a><a class="active" href="/learn/intermediate">Intermediate</a><a href="/learn/advanced">Advanced</a></span>
       </div>
 
       <section class="section active" id="section-dashboard">
@@ -943,7 +1000,18 @@ def render_dashboard_html(state: DashboardState) -> str:
       </section>
 
       <section class="section" id="section-security">
-        <div class="grid"><article class="card full"><h2>Security</h2><div id="security-output" class="empty">Loading security principles...</div></article></div>
+        <div class="grid">
+          <article class="card full"><div class="eyebrow">Risk Analysis</div><h2>Risk page</h2><div class="empty">Risk analysis will appear after a portfolio or paper-trading session contains enough data.</div><p>Risk analysis is informational and based on available market and portfolio data. It does not guarantee future performance or eliminate investment risk.</p></article>
+          <article class="card"><h2>Portfolio Risk Score</h2><p>Summarizes multiple risk inputs when enough portfolio or fake-paper session data exists.</p></article>
+          <article class="card"><h2>Volatility</h2><p>Describes how much prices have been moving. Higher volatility can increase uncertainty and position risk.</p></article>
+          <article class="card"><h2>Maximum Drawdown</h2><p>Shows the largest peak-to-trough decline in available portfolio or strategy data.</p></article>
+          <article class="card"><h2>Concentration Risk</h2><p>Explains whether too much exposure is clustered in one symbol, sector, or theme.</p></article>
+          <article class="card"><h2>Sector Exposure</h2><p>Describes how portfolio exposure is distributed across market sectors when data exists.</p></article>
+          <article class="card"><h2>Asset Correlation</h2><p>Explains whether assets tend to move together, which can reduce diversification benefits.</p></article>
+          <article class="card"><h2>Diversification</h2><p>Describes how spread out exposure is across assets, sectors, and strategies.</p></article>
+          <article class="card"><h2>Data Freshness</h2><p>Risk summaries must distinguish current data from delayed, stale, unavailable, or latest-available data.</p></article>
+          <article class="card full"><h2>Methodology Explanation</h2><p>Future risk scores should come from backend snapshots and explain their inputs. The browser does not calculate portfolio risk, RSI, MACD, strategy signals, or trade decisions.</p><div id="security-output" class="empty">Loading security principles...</div></article>
+        </div>
       </section>
 
       <section class="section" id="section-settings">
@@ -964,6 +1032,7 @@ def render_dashboard_html(state: DashboardState) -> str:
       '/app/strategies': 'strategies',
       '/app/portfolio': 'portfolio',
       '/app/paper': 'paper-trading',
+      '/app/risk': 'security',
       '/app/reports': 'settings'
     }};
     function showSection(name, route = null, push = true) {{
@@ -1187,6 +1256,9 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
             if parsed.path in ("/", "/index.html"):
                 _write_html(self, render_landing_html())
                 return
+            if parsed.path in PUBLIC_ROUTES:
+                _write_html(self, render_public_route(parsed.path))
+                return
             if parsed.path in APP_ROUTE_MAP:
                 _write_html(self, render_dashboard_html(application.build_state()))
                 return
@@ -1292,6 +1364,16 @@ def _metric(label: str, value: str) -> str:
     """Render one dashboard metric row."""
     return f'<div class="metric"><span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
 
+
+
+def _market_status_indicator(status: str | None) -> tuple[str, str]:
+    """Return a market status CSS class and matching label."""
+    normalized = (status or "").strip().upper()
+    if normalized == "OPEN":
+        return "open", "Market Open"
+    if normalized == "CLOSED":
+        return "closed", "Market Closed"
+    return "unknown", "Status Unknown"
 
 def _market_status() -> str:
     """Return a simple display-only market session status."""

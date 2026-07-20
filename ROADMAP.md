@@ -596,6 +596,32 @@ Still unavailable:
 - Reports generation.
 - Accounts, authentication, persistence, broker connectivity, real orders, and real trading.
 
+## Milestone 8.6: Company, Education, Risk, and Membership Polish
+
+Status: complete.
+
+Goal: make the local QMR.CO website clearer and more honest without changing engine behavior.
+
+Implemented:
+
+- Dedicated About page with mission, philosophy, founder note, and research-platform positioning.
+- Product-focused Platform page.
+- Membership and Pricing routes with Free, Member, and Premium planned tiers.
+- Explicit Sign In Coming Soon page with no authentication form.
+- Beginner, intermediate, and advanced Learning pages.
+- Risk page with meaningful risk concepts and honest empty states.
+- Market status indicator labels that match open, closed, and unknown visual states.
+- Tests for public routes, pricing, sign-in unavailability, learning pages, risk content, and dead-link avoidance.
+
+Still unavailable:
+
+- Accounts.
+- Authentication.
+- Payment processing.
+- Broker connectivity.
+- Real trading.
+- Personalized financial advice.
+
 ## Milestone 9: Portfolio Engine
 
 Track positions, allocation, exposure, and portfolio-level performance.

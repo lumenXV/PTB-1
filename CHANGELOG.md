@@ -4,6 +4,17 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+## Milestone 8.6: Company, Education, Risk, and Membership Polish
+
+- Added dedicated public pages for Platform, About, Membership/Pricing, Sign In Coming Soon, and beginner/intermediate/advanced Learning.
+- Added an About page with mission, philosophy, founder note, and clear research-platform-not-broker language.
+- Added a product-focused Platform page that explains QMR.CO's research workflow.
+- Added planned membership tiers: Free at `$0/month`, Member at `$35.99/month`, and Premium launch pricing at `$49.99/month` with planned standard price of `$69.99/month`.
+- Added a Risk view with concept sections and honest empty states instead of fake portfolio metrics.
+- Fixed market-status display so open, closed, and unknown statuses use matching labels and visual states.
+- Added tests for new public routes, sign-in unavailability, learning pages, pricing, risk content, route serving, and dead-link avoidance.
+- Preserved fake-money-only behavior, no real trading, no broker integration, no auth backend, no payments, and no new dependencies.
+
 ## Milestone 8.5.1: Functional Navigation and Landing-Page Integration
 
 - Added a public QMR.CO landing page at `/` using the supplied landing-page design as the source reference.

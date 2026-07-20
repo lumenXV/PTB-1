@@ -18,14 +18,21 @@ from ptb1.dashboard import (
     DashboardApplication,
     DashboardSession,
     DashboardState,
+    _market_status_indicator,
     _render_card,
     _render_empty_state,
     _render_status_pill,
     _render_table,
     build_dashboard_state,
     create_dashboard_handler,
+    render_about_html,
     render_dashboard_html,
     render_landing_html,
+    render_learning_html,
+    render_membership_html,
+    render_platform_html,
+    render_public_route,
+    render_sign_in_html,
 )
 from ptb1.engine import EngineFacade, EnginePaperSessionConfig
 from ptb1.historian import PriceBar, load_price_history
@@ -563,6 +570,154 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn("Paper Trading", output)
         self.assertNotIn('href="#"', output)
 
+    def test_about_page_has_company_mission_and_unique_content(self) -> None:
+        """The About page should explain the company without duplicating Platform."""
+        about = render_about_html()
+        platform = render_platform_html()
+
+        self.assertIn("Mission", about)
+        self.assertIn("Founder", about)
+        self.assertIn("Jeffery M.", about)
+        self.assertIn("small team with big dreams", about)
+        self.assertIn("research platform", about)
+        self.assertIn("not a broker", about)
+        self.assertNotEqual(about, platform)
+        self.assertNotIn('href="#"', about)
+
+    def test_platform_page_focuses_on_product_workflow(self) -> None:
+        """The Platform page should describe QMR.CO workflow sections."""
+        output = render_platform_html()
+
+        for section in (
+            "Market Research",
+            "Research Cards",
+            "Strategy Analysis",
+            "Portfolio Intelligence",
+            "Risk Analysis",
+            "Paper Trading",
+            "Explainable Intelligence",
+            "Reports",
+        ):
+            self.assertIn(section, output)
+        self.assertNotIn('href="#"', output)
+
+    def test_market_status_indicator_uses_matching_color_and_label(self) -> None:
+        """Market status labels should not show a closed market with an open marker."""
+        self.assertEqual(_market_status_indicator("OPEN"), ("open", "Market Open"))
+        self.assertEqual(_market_status_indicator("CLOSED"), ("closed", "Market Closed"))
+        self.assertEqual(_market_status_indicator("unexpected"), ("unknown", "Status Unknown"))
+
+        closed_state = DashboardState(
+            version="v0.7.3",
+            provider_manager_status="Connected",
+            primary_provider="stooq",
+            fallback_provider="http",
+            market_status="CLOSED",
+            last_update="12:00:00",
+            watchlist_lines=("No symbols selected.",),
+            paper_summary=None,
+            live_paper_summary=None,
+        )
+        unknown_state = DashboardState(
+            version="v0.7.3",
+            provider_manager_status="Connected",
+            primary_provider="stooq",
+            fallback_provider="http",
+            market_status="UNKNOWN",
+            last_update="12:00:00",
+            watchlist_lines=("No symbols selected.",),
+            paper_summary=None,
+            live_paper_summary=None,
+        )
+
+        self.assertIn('class="market-dot closed">Market Closed</div>', render_dashboard_html(closed_state))
+        self.assertIn('class="market-dot unknown">Status Unknown</div>', render_dashboard_html(unknown_state))
+
+    def test_sign_in_page_is_explicitly_coming_soon_without_form(self) -> None:
+        """The sign-in route should not imply an auth system exists."""
+        output = render_sign_in_html()
+
+        self.assertIn("Sign In is coming soon.", output)
+        self.assertIn("accounts are not available", output)
+        self.assertNotIn("<form", output)
+        self.assertNotIn("<input", output)
+        self.assertNotIn('type="password"', output)
+        self.assertNotIn('href="#"', output)
+
+    def test_learning_pages_contain_level_specific_education(self) -> None:
+        """Learning pages should provide real route content for each level."""
+        beginner = render_learning_html("beginner")
+        intermediate = render_learning_html("intermediate")
+        advanced = render_learning_html("advanced")
+        dashboard = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn("Beginner Learning", beginner)
+        self.assertIn("what a stock or ETF represents", beginner)
+        self.assertIn("Intermediate Learning", intermediate)
+        self.assertIn("strategy comparison", intermediate)
+        self.assertIn("Advanced Learning", advanced)
+        self.assertIn("drawdown, Sharpe ratio", advanced)
+        self.assertIn('href="/learn/beginner"', dashboard)
+        self.assertIn('href="/learn/intermediate"', dashboard)
+        self.assertIn('href="/learn/advanced"', dashboard)
+
+    def test_membership_page_shows_pricing_without_payments(self) -> None:
+        """Membership should show planned tiers without checkout behavior."""
+        output = render_membership_html()
+
+        self.assertIn("$0/month", output)
+        self.assertIn("$35.99/month", output)
+        self.assertIn("$49.99/month", output)
+        self.assertIn("Planned standard price: $69.99/month", output)
+        self.assertIn("Feature comparison", output)
+        self.assertIn("Coming Soon", output)
+        self.assertIn("Explore Free", output)
+        self.assertIn("No tier enables live trading", output)
+        self.assertNotIn("checkout", output.lower())
+        self.assertNotIn('href="#"', output)
+
+    def test_risk_page_uses_meaningful_empty_state_without_fake_metrics(self) -> None:
+        """Risk page content should be useful without inventing portfolio numbers."""
+        output = render_dashboard_html(build_dashboard_state())
+        start = output.index('id="section-security"')
+        end = output.index('id="section-settings"')
+        risk_section = output[start:end]
+
+        for section in (
+            "Risk Analysis",
+            "Portfolio Risk Score",
+            "Volatility",
+            "Maximum Drawdown",
+            "Concentration Risk",
+            "Sector Exposure",
+            "Asset Correlation",
+            "Diversification",
+            "Data Freshness",
+            "Methodology Explanation",
+        ):
+            self.assertIn(section, risk_section)
+        self.assertIn("will appear after a portfolio or paper-trading session contains enough data", risk_section)
+        self.assertIn("does not guarantee future performance", risk_section)
+        self.assertNotIn("68%", risk_section)
+        self.assertNotIn("$", risk_section)
+
+    def test_public_route_renderer_handles_new_pages_without_dead_links(self) -> None:
+        """Public page renderer should support every company, education, and pricing route."""
+        for route in (
+            "/platform",
+            "/about",
+            "/membership",
+            "/pricing",
+            "/sign-in",
+            "/learn/beginner",
+            "/learn/intermediate",
+            "/learn/advanced",
+        ):
+            with self.subTest(route=route):
+                output = render_public_route(route)
+                self.assertIn("QMR.CO", output)
+                self.assertNotIn('href="#"', output)
+
     def test_dashboard_sidebar_targets_are_real_application_routes(self) -> None:
         """Sidebar controls should have route targets instead of dead placeholders."""
         output = render_dashboard_html(build_dashboard_state())
@@ -573,6 +728,7 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn('data-route="/app/strategies"', output)
         self.assertIn('data-route="/app/portfolio"', output)
         self.assertIn('data-route="/app/paper"', output)
+        self.assertIn('data-route="/app/risk"', output)
         self.assertIn('data-route="/app/reports"', output)
         self.assertNotIn('href="#"', output)
 
@@ -736,7 +892,25 @@ class DashboardShellTests(unittest.TestCase):
             port = server.server_address[1]
             bodies = {
                 route: urlopen(f"http://localhost:{port}{route}", timeout=2).read().decode("utf-8")
-                for route in ("/", "/app", "/app/research", "/app/market", "/app/strategies", "/app/portfolio", "/app/paper", "/app/reports")
+                for route in (
+                    "/",
+                    "/platform",
+                    "/about",
+                    "/membership",
+                    "/pricing",
+                    "/sign-in",
+                    "/learn/beginner",
+                    "/learn/intermediate",
+                    "/learn/advanced",
+                    "/app",
+                    "/app/research",
+                    "/app/market",
+                    "/app/strategies",
+                    "/app/portfolio",
+                    "/app/paper",
+                    "/app/risk",
+                    "/app/reports",
+                )
             }
         finally:
             server.shutdown()
@@ -744,8 +918,27 @@ class DashboardShellTests(unittest.TestCase):
             thread.join(timeout=2)
 
         self.assertIn("Markets are complicated", bodies["/"])
-        for route in ("/app", "/app/research", "/app/market", "/app/strategies", "/app/portfolio", "/app/paper", "/app/reports"):
+        for route in (
+            "/platform",
+            "/about",
+            "/membership",
+            "/pricing",
+            "/sign-in",
+            "/learn/beginner",
+            "/learn/intermediate",
+            "/learn/advanced",
+            "/app",
+            "/app/research",
+            "/app/market",
+            "/app/strategies",
+            "/app/portfolio",
+            "/app/paper",
+            "/app/risk",
+            "/app/reports",
+        ):
             self.assertIn("QMR.CO", bodies[route])
+            self.assertNotIn('href="#"', bodies[route])
+        for route in ("/app", "/app/research", "/app/market", "/app/strategies", "/app/portfolio", "/app/paper", "/app/risk", "/app/reports"):
             self.assertIn("Paper Research Account", bodies[route])
 
     def test_paper_api_returns_inactive_default_state(self) -> None:

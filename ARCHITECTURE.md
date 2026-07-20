@@ -231,18 +231,22 @@ Responsibilities:
 - Render dashboard HTML, CSS, and lightweight local JavaScript with standard library tools.
 - Own centralized local dashboard design tokens and reusable rendering helpers.
 - Keep visual structure separate from API and engine behavior.
+- Render public local pages for landing, platform, about, membership/pricing, sign-in coming soon, and learning paths.
 - Display safe platform, provider, paper, live-paper, and trust state.
 - Provide safe local JSON routes for status, markets, watchlist, strategies, research, paper, and security.
 - Maintain dashboard-local in-memory watchlist state for the running server process.
 - Reach paper-session behavior only through `EngineFacade`.
 - Validate watchlist symbols before requesting provider data.
 - Use ProviderManager cache and cooldown behavior for market refreshes.
+- Show risk concepts and unavailable-state messaging without fabricating metrics.
+- Keep market-status labels and visual states aligned for open, closed, and unknown status.
 - Print the local dashboard URL at startup.
 
 Must not:
 
 - Publicly host QMR.CO.
 - Add accounts, login, payments, databases, or persistence.
+- Render fake authentication, checkout, broker, or real-order controls.
 - Fetch market data except through explicit read-only dashboard market/watchlist requests.
 - Mutate core engine watchlists or provider state.
 - Run strategies.

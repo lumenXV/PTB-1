@@ -21,6 +21,7 @@ Milestone 8.1 makes the local dashboard functional with read-only JSON APIs, sin
 Milestone 8.2 cleans up the dashboard visual system with centralized design tokens, reusable render helpers, premium dark styling, responsive layout, clearer empty states, and consistent cards, tables, forms, badges, and safety messaging. It does not change dashboard APIs or engine behavior.
 The accelerated dashboard paper scanner vertical slice adds a website-operated fake-money session through `EngineFacade` and `PaperSessionController`. It uses one application-wide in-memory session, one sequential background scanner, a bounded 20-symbol default universe, a 15-minute default interval, and a 5-minute minimum interval. It remains fake-money only: no broker, no real orders, no database, no persistence, no cookies, no browser client IDs, and no per-tab sessions.
 Milestone 8.5.1 adds a functional local application shell: `/` serves the public landing page, `/app` serves the dashboard, and `/app/research`, `/app/market`, `/app/strategies`, `/app/portfolio`, `/app/paper`, and `/app/reports` deep-link into application views. Sidebar navigation, landing CTAs, symbol search, and paper-session controls are functional while unfinished modules show deliberate empty states.
+Milestone 8.6 polishes company, education, risk, and membership content. It adds dedicated public routes for About, Platform, Membership/Pricing, Sign In Coming Soon, and beginner/intermediate/advanced learning pages; fixes market-status color/label consistency; and keeps auth, payments, broker connections, and real trading unavailable.
 
 Learning Mode is a read-only companion feature. It teaches what QMR.CO is doing, explains strategy concepts, and defines research terms. It does not run backtests, place trades, change strategies, change parameters, modify risk, or influence decisions.
 
@@ -54,12 +55,21 @@ Local routes:
 
 ```text
 /                  Public landing page
+/platform          Product workflow overview
+/about             Company mission and founder note
+/membership        Membership and planned pricing
+/pricing           Alias for membership and planned pricing
+/sign-in           Coming soon, no authentication form
+/learn/beginner    Beginner education page
+/learn/intermediate Intermediate education page
+/learn/advanced    Advanced education page
 /app               QMR.CO dashboard overview
 /app/research      Research view
 /app/market        Market/watchlist view
 /app/strategies    Strategies view
 /app/portfolio     Portfolio view
 /app/paper         Fake-money paper trading view
+/app/risk          Risk analysis view with honest empty states
 /app/reports       Reports placeholder
 ```
 
@@ -258,9 +268,11 @@ No module should do another employee's job.
 17. Local Web Dashboard Shell. Done in Milestone 8.
 18. Functional read-only dashboard. Done in Milestone 8.1.
 19. Dashboard visual system cleanup. Done in Milestone 8.2.
-20. Portfolio tracking.
-21. Robinhood MCP.
-22. AI researcher.
-23. Learning engine.
-24. Market Memory.
-25. Mobile Dashboard.
+20. Functional navigation and landing-page integration. Done in Milestone 8.5.1.
+21. Company, education, risk, and membership polish. Done in Milestone 8.6.
+22. Portfolio tracking.
+23. Robinhood MCP.
+24. AI researcher.
+25. Learning engine.
+26. Market Memory.
+27. Mobile Dashboard.
