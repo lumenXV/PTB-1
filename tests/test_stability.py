@@ -9,15 +9,17 @@ import json
 from datetime import date, datetime, timedelta
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
 from ptb1.assets import Asset, AssetType, create_crypto_asset, create_etf_asset, create_stock_asset
-from ptb1.cli import build_parser
+from ptb1.cli import build_parser, main as cli_main
 from ptb1.dashboard import (
     DashboardApplication,
     DashboardSession,
     DashboardState,
+    _dashboard_startup_lines,
     _market_status_indicator,
     _render_card,
     _render_empty_state,
@@ -25,6 +27,7 @@ from ptb1.dashboard import (
     _render_table,
     build_dashboard_state,
     create_dashboard_handler,
+    dashboard_host_for_mode,
     render_about_html,
     render_dashboard_html,
     render_landing_html,
@@ -746,6 +749,44 @@ class DashboardShellTests(unittest.TestCase):
         args = build_parser().parse_args(["--dashboard"])
 
         self.assertTrue(args.dashboard)
+        self.assertFalse(args.lan)
+
+    def test_dashboard_default_host_remains_loopback(self) -> None:
+        """Dashboard mode should stay local-only unless LAN mode is requested."""
+        self.assertEqual(dashboard_host_for_mode(False), "127.0.0.1")
+
+        lines = _dashboard_startup_lines("127.0.0.1", 8765)
+
+        self.assertIn("Local URL: http://127.0.0.1:8765", lines)
+        self.assertIn("Mode: Local read-only dashboard", lines)
+        self.assertNotIn("LAN MODE - accessible to devices on the same network", lines)
+
+    def test_dashboard_lan_mode_uses_all_interfaces_with_clear_warning(self) -> None:
+        """LAN mode should bind broadly only when explicitly requested."""
+        args = build_parser().parse_args(["--dashboard", "--lan"])
+
+        self.assertTrue(args.dashboard)
+        self.assertTrue(args.lan)
+        self.assertEqual(dashboard_host_for_mode(True), "0.0.0.0")
+
+        lines = _dashboard_startup_lines("0.0.0.0", 8765, network_ip="192.168.1.41")
+
+        self.assertIn("Local URL: http://127.0.0.1:8765", lines)
+        self.assertIn("Network URL: http://192.168.1.41:8765", lines)
+        self.assertIn("LAN MODE - accessible to devices on the same network", lines)
+        self.assertIn("PAPER TRADE ONLY - no real trading", lines)
+
+    def test_cli_dashboard_dispatch_preserves_default_and_lan_modes(self) -> None:
+        """CLI dashboard commands should pass the requested bind mode to run_dashboard."""
+        with patch("ptb1.cli.run_dashboard") as dashboard:
+            cli_main(["--dashboard"])
+
+        dashboard.assert_called_once_with(lan=False)
+
+        with patch("ptb1.cli.run_dashboard") as dashboard:
+            cli_main(["--dashboard", "--lan"])
+
+        dashboard.assert_called_once_with(lan=True)
 
     def test_status_api_returns_safe_json_payload(self) -> None:
         """Status API should expose read-only platform facts only."""

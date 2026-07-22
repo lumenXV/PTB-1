@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape
@@ -1222,19 +1223,42 @@ def render_dashboard_html(state: DashboardState) -> str:
 </html>"""
 
 
-def run_dashboard(host: str = "127.0.0.1", port: int = 8765) -> None:
+def dashboard_host_for_mode(lan: bool) -> str:
+    """Return the dashboard bind host for the selected development mode."""
+    return "0.0.0.0" if lan else "127.0.0.1"
+
+
+def _dashboard_startup_lines(host: str, port: int, network_ip: str | None = None) -> tuple[str, ...]:
+    """Return startup lines for the selected dashboard bind host."""
+    lines = [
+        "QMR.CO Dashboard",
+        f"Local URL: http://127.0.0.1:{port}",
+    ]
+    if host == "0.0.0.0":
+        detected_network_ip = network_ip or _detect_lan_ip()
+        lines.append(f"Network URL: http://{detected_network_ip}:{port}")
+        lines.append("LAN MODE - accessible to devices on the same network")
+    else:
+        lines.append("Mode: Local read-only dashboard")
+    lines.extend(
+        [
+            "PAPER TRADE ONLY - no real trading",
+            "Press Ctrl+C to stop.",
+        ]
+    )
+    return tuple(lines)
+
+
+def run_dashboard(host: str | None = None, port: int = 8765, lan: bool = False) -> None:
     """Run the local read-only dashboard until interrupted."""
-    if host not in ("localhost", "127.0.0.1"):
-        raise ValueError("Dashboard host must be localhost or 127.0.0.1.")
+    bind_host = host or dashboard_host_for_mode(lan)
+    if bind_host not in ("localhost", "127.0.0.1", "0.0.0.0"):
+        raise ValueError("Dashboard host must be localhost, 127.0.0.1, or 0.0.0.0.")
     application = DashboardApplication()
     handler_class = create_dashboard_handler(application)
-    server = ThreadingHTTPServer((host, port), handler_class)
-    url = f"http://{host}:{port}"
-    print("QMR.CO Dashboard", flush=True)
-    print(f"Local URL: {url}", flush=True)
-    print("Mode: Local read-only dashboard", flush=True)
-    print("PAPER TRADE ONLY - no real trading", flush=True)
-    print("Press Ctrl+C to stop.", flush=True)
+    server = ThreadingHTTPServer((bind_host, port), handler_class)
+    for line in _dashboard_startup_lines(bind_host, port):
+        print(line, flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1242,6 +1266,19 @@ def run_dashboard(host: str = "127.0.0.1", port: int = 8765) -> None:
     finally:
         application.engine.shutdown()
         server.server_close()
+
+
+def _detect_lan_ip() -> str:
+    """Best-effort local network IP detection for development dashboard display."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            return str(probe.getsockname()[0])
+    except OSError:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return "LAN-IP-UNAVAILABLE"
 
 
 def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTPRequestHandler]:

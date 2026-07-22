@@ -4,6 +4,11 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+- Added explicit development LAN access for the local dashboard with `python -m ptb1 --dashboard --lan`.
+- Preserved secure dashboard default binding at `127.0.0.1:8765`; LAN mode must be requested and binds to `0.0.0.0:8765`.
+- Added startup output for LAN mode showing local and network URLs plus same-network and paper-trade-only warnings.
+- Added tests for dashboard host selection, CLI LAN dispatch, unchanged dashboard defaults, and continued `real_trading_enabled: false`.
+
 ## Milestone 8.6: Company, Education, Risk, and Membership Polish
 
 - Added dedicated public pages for Platform, About, Membership/Pricing, Sign In Coming Soon, and beginner/intermediate/advanced Learning.

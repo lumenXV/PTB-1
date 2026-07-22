@@ -51,6 +51,20 @@ Launch the local application server:
 python -m ptb1 --dashboard
 ```
 
+By default, the dashboard binds only to loopback:
+
+```text
+127.0.0.1:8765
+```
+
+For development on devices connected to the same LAN, explicitly enable LAN mode:
+
+```powershell
+python -m ptb1 --dashboard --lan
+```
+
+LAN mode binds to `0.0.0.0:8765` and prints both a local URL and a network URL. It does not add authentication, internet exposure, tunneling, port forwarding, cloud deployment, broker access, or real trading. `real_trading_enabled` remains false.
+
 Local routes:
 
 ```text

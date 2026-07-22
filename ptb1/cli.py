@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Start the local read-only QMR.CO dashboard.",
     )
     parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Bind the dashboard to 0.0.0.0 for same-network development access.",
+    )
+    parser.add_argument(
         "--symbol",
         action="append",
         default=[],
@@ -118,7 +123,7 @@ def main(argv: list[str] | None = None) -> None:
 
         args = build_parser().parse_args(raw_args)
         if args.dashboard:
-            run_dashboard()
+            run_dashboard(lan=args.lan)
             return
         if args.learning:
             _print_learning_mode()
