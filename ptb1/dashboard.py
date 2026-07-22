@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import socket
+import secrets
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from ptb1.engine import EngineFacade
@@ -32,6 +37,189 @@ PUBLIC_ROUTES = {"/platform", "/about", "/membership", "/pricing", "/sign-in", "
 
 from ptb1.operations import VERSION
 from ptb1.security import PrivacyFilter
+
+LAN_ACCESS_WARNING = (
+    "The temporary LAN access code protects against accidental or casual unauthorized access. "
+    "It does not provide confidentiality against a compromised or hostile network because "
+    "development LAN mode does not use HTTPS."
+)
+SESSION_COOKIE_NAME = "qmr_lan_session"
+SESSION_TIMEOUT_SECONDS = 30 * 60
+REQUEST_BODY_LIMIT_BYTES = 16_384
+
+
+class AccessState(Enum):
+    """Approved dashboard access states."""
+
+    PUBLIC = "PUBLIC"
+    LOCAL_TRUSTED = "LOCAL_TRUSTED"
+    LAN_AUTHORIZED = "LAN_AUTHORIZED"
+
+
+@dataclass
+class _LanSession:
+    """In-memory LAN authorization session."""
+
+    token: str
+    csrf_token: str
+    client_ip: str
+    last_seen: float
+
+
+class DashboardAccessController:
+    """Control development LAN access without creating a general auth system."""
+
+    def __init__(
+        self,
+        lan_enabled: bool = False,
+        access_code: str | None = None,
+        now: Callable[[], float] | None = None,
+        inactivity_seconds: int = SESSION_TIMEOUT_SECONDS,
+        per_client_attempt_limit: int = 5,
+        global_attempt_limit: int = 25,
+        attempt_window_seconds: int = 60,
+    ) -> None:
+        """Create an in-memory LAN access controller."""
+        self.lan_enabled = lan_enabled
+        self.access_code = access_code or (secrets.token_urlsafe(9) if lan_enabled else "")
+        self._now = now or time.time
+        self.inactivity_seconds = inactivity_seconds
+        self.per_client_attempt_limit = per_client_attempt_limit
+        self.global_attempt_limit = global_attempt_limit
+        self.attempt_window_seconds = attempt_window_seconds
+        self._sessions: dict[str, _LanSession] = {}
+        self._client_attempts: dict[str, list[float]] = {}
+        self._global_attempts: list[float] = []
+        self._lock = threading.Lock()
+
+    def access_state(self, client_ip: str, cookie_header: str | None = None) -> AccessState:
+        """Return the current access state for a request."""
+        if _is_loopback_address(client_ip):
+            return AccessState.LOCAL_TRUSTED
+        if not self.lan_enabled or not _is_private_or_loopback_address(client_ip):
+            return AccessState.PUBLIC
+
+        token = _cookie_value(cookie_header or "", SESSION_COOKIE_NAME)
+        if token is None:
+            return AccessState.PUBLIC
+
+        with self._lock:
+            session = self._active_session(token, client_ip)
+            if session is None:
+                return AccessState.PUBLIC
+            session.last_seen = self._now()
+            return AccessState.LAN_AUTHORIZED
+
+    def session_status(self, client_ip: str, cookie_header: str | None = None) -> dict[str, object]:
+        """Return safe access-state details for dashboard JavaScript."""
+        state = self.access_state(client_ip, cookie_header)
+        csrf_token = None
+        if state is AccessState.LAN_AUTHORIZED:
+            token = _cookie_value(cookie_header or "", SESSION_COOKIE_NAME)
+            with self._lock:
+                session = self._sessions.get(token or "")
+                csrf_token = session.csrf_token if session else None
+        return {
+            "access_state": state.value,
+            "lan_enabled": self.lan_enabled,
+            "csrf_required": state is AccessState.LAN_AUTHORIZED,
+            "csrf_token": csrf_token,
+            "session_timeout_seconds": self.inactivity_seconds,
+        }
+
+    def authorize(
+        self,
+        client_ip: str,
+        submitted_code: str,
+        cookie_header: str | None = None,
+    ) -> tuple[int, dict[str, object], tuple[tuple[str, str], ...]]:
+        """Exchange a temporary access code for a separate session token."""
+        if not self.lan_enabled:
+            return 404, {"error": "LAN authorization is not enabled."}, ()
+        if not _is_private_or_loopback_address(client_ip):
+            return 403, {"error": "LAN access is restricted to private or loopback addresses."}, ()
+
+        with self._lock:
+            if self._rate_limited(client_ip):
+                return 429, {"error": "Too many access attempts. Try again later."}, ()
+
+            if not self._valid_access_code(submitted_code):
+                return 401, {"error": "Invalid LAN access code."}, ()
+
+            old_token = _cookie_value(cookie_header or "", SESSION_COOKIE_NAME)
+            if old_token:
+                self._sessions.pop(old_token, None)
+
+            token = secrets.token_urlsafe(32)
+            csrf_token = secrets.token_urlsafe(32)
+            self._sessions[token] = _LanSession(
+                token=token,
+                csrf_token=csrf_token,
+                client_ip=client_ip,
+                last_seen=self._now(),
+            )
+            cookie = (
+                f"{SESSION_COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Strict; "
+                f"Max-Age={self.inactivity_seconds}"
+            )
+            return (
+                200,
+                {
+                    "authorized": True,
+                    "access_state": AccessState.LAN_AUTHORIZED.value,
+                    "csrf_token": csrf_token,
+                    "session_timeout_seconds": self.inactivity_seconds,
+                },
+                (("Set-Cookie", cookie),),
+            )
+
+    def validate_state_change(
+        self,
+        client_ip: str,
+        cookie_header: str | None,
+        csrf_token: str | None,
+    ) -> tuple[bool, int, dict[str, object], AccessState]:
+        """Validate authorization and CSRF for state-changing dashboard requests."""
+        state = self.access_state(client_ip, cookie_header)
+        if state is AccessState.LOCAL_TRUSTED:
+            return True, 200, {}, state
+        if state is AccessState.PUBLIC:
+            return False, 401, {"error": "LAN authorization required."}, state
+
+        session_token = _cookie_value(cookie_header or "", SESSION_COOKIE_NAME)
+        with self._lock:
+            session = self._sessions.get(session_token or "")
+            if session is None:
+                return False, 401, {"error": "LAN authorization required."}, AccessState.PUBLIC
+            if not csrf_token or not secrets.compare_digest(csrf_token, session.csrf_token):
+                return False, 403, {"error": "Invalid CSRF token."}, state
+            session.last_seen = self._now()
+            return True, 200, {}, state
+
+    def _active_session(self, token: str, client_ip: str) -> _LanSession | None:
+        """Return a non-expired session bound to the same client address."""
+        session = self._sessions.get(token)
+        if session is None or session.client_ip != client_ip:
+            return None
+        if self._now() - session.last_seen > self.inactivity_seconds:
+            self._sessions.pop(token, None)
+            return None
+        return session
+
+    def _valid_access_code(self, submitted_code: str) -> bool:
+        """Return whether the submitted access code matches the temporary code."""
+        return bool(submitted_code) and secrets.compare_digest(submitted_code.strip(), self.access_code)
+
+    def _rate_limited(self, client_ip: str) -> bool:
+        """Record an authorization attempt and return whether limits are exceeded."""
+        now = self._now()
+        cutoff = now - self.attempt_window_seconds
+        self._global_attempts = [attempt for attempt in self._global_attempts if attempt >= cutoff]
+        client_attempts = [attempt for attempt in self._client_attempts.get(client_ip, []) if attempt >= cutoff]
+        self._global_attempts.append(now)
+        client_attempts.append(now)
+        self._client_attempts[client_ip] = client_attempts
+        return len(client_attempts) > self.per_client_attempt_limit or len(self._global_attempts) > self.global_attempt_limit
 
 
 @dataclass(frozen=True)
@@ -90,12 +278,15 @@ class DashboardApplication:
         provider_manager: ProviderManager | None = None,
         session: DashboardSession | None = None,
         data_dir: Path = Path("datasets"),
+        access_controller: DashboardAccessController | None = None,
+        lan_enabled: bool = False,
     ) -> None:
         """Create a dashboard application with injectable dependencies."""
         self.engine = EngineFacade(provider_manager=provider_manager, data_dir=data_dir)
         self.session = session or DashboardSession()
         self.data_dir = data_dir
         self.privacy_filter = PrivacyFilter()
+        self.access_controller = access_controller or DashboardAccessController(lan_enabled=lan_enabled)
 
     def build_state(self) -> DashboardState:
         """Build safe display state without running strategies or research."""
@@ -722,6 +913,25 @@ def _public_page(title: str, body: str) -> str:
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)} | QMR.CO</title>{_render_public_styles()}</head><body>{_public_header()}<main>{body}</main>{_public_footer()}</body></html>"""
 
 
+def render_lan_access_html() -> str:
+    """Render the temporary LAN access-code page."""
+    body = f"""<section class="info"><p class="eyebrow">Development LAN Access</p><h1>Enter the temporary LAN access code.</h1><p class="lede">This browser is connecting through LAN mode. Enter the access code printed in the QMR.CO terminal to continue.</p><article><form id="lan-access-form"><label for="lan-access-code">LAN access code</label><input id="lan-access-code" autocomplete="off" inputmode="text" aria-label="LAN access code"><button class="primary" type="submit">Authorize LAN browser</button></form><p id="lan-access-message" class="muted"></p></article><article><h3>Development warning</h3><p>{escape(LAN_ACCESS_WARNING)}</p><p>No real trading, no broker connection, and no production authentication are enabled.</p></article><script>
+    document.getElementById('lan-access-form').addEventListener('submit', async (event) => {{
+      event.preventDefault();
+      const access_code = document.getElementById('lan-access-code').value;
+      const response = await fetch('/api/lan/authorize', {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{access_code}})
+      }});
+      const data = await response.json();
+      document.getElementById('lan-access-message').textContent = data.error || 'Authorized. Loading dashboard...';
+      if (response.ok) window.location.href = '/app';
+    }});
+  </script></section>"""
+    return _public_page("LAN Access", body)
+
+
 def render_platform_html() -> str:
     """Render the product-focused platform page."""
     body = """<section class="info"><p class="eyebrow">Platform</p><h1>QMR.CO Research Workflow</h1><p class="lede">QMR.CO organizes market data, strategy evidence, risk context, fake-money validation, and explainable reports into one local research application.</p><div class="grid"><article><h3>Market Research</h3><p>Provider-backed market state and clear unavailable-data labels.</p></article><article><h3>Research Cards</h3><p>Evidence, uncertainty, strategy context, and plain-language explanations.</p></article><article><h3>Strategy Analysis</h3><p>Registered strategies remain backend-owned and comparable.</p></article><article><h3>Portfolio Intelligence</h3><p>Future allocation, exposure, and portfolio state summaries.</p></article><article><h3>Risk Analysis</h3><p>Drawdown, concentration, volatility, correlation, and methodology explanations.</p></article><article><h3>Paper Trading</h3><p>Fake-money validation before any future financial integration.</p></article><article><h3>Explainable Intelligence</h3><p>Readable explanations without browser-side signal calculation.</p></article><article><h3>Reports</h3><p>Planned research summaries and audit-friendly outputs.</p></article></div></section>"""
@@ -1025,6 +1235,7 @@ def render_dashboard_html(state: DashboardState) -> str:
   <script>
     const sections = document.querySelectorAll('.section');
     const navButtons = document.querySelectorAll('nav button[data-section]');
+    let csrfToken = null;
     const routeMap = {{
       '/app': 'dashboard',
       '/app/': 'dashboard',
@@ -1060,11 +1271,21 @@ def render_dashboard_html(state: DashboardState) -> str:
     window.addEventListener('popstate', () => applyRoute(false));
 
     async function api(path, options = {{}}) {{
+      const headers = {{'Content-Type': 'application/json', ...(options.headers || {{}})}};
+      if (csrfToken && (options.method || 'GET').toUpperCase() !== 'GET') headers['X-QMR-CSRF-Token'] = csrfToken;
       const response = await fetch(path, {{
-        headers: {{'Content-Type': 'application/json'}},
-        ...options
+        ...options,
+        headers
       }});
       return response.json();
+    }}
+    async function loadAccessSession() {{
+      try {{
+        const data = await api('/api/lan/session');
+        csrfToken = data.csrf_token || null;
+      }} catch (error) {{
+        csrfToken = null;
+      }}
     }}
     function marketCard(item) {{
       const price = item.last_price === null ? 'N/A' : `$${{Number(item.last_price).toFixed(2)}}`;
@@ -1213,11 +1434,13 @@ def render_dashboard_html(state: DashboardState) -> str:
     api('/api/paper').then(data => {{
       document.getElementById('portfolio-output').textContent = data.active ? `Portfolio Value: ${{data.portfolio_value}}` : `${{data.message}} ${{data.default_cash_note}}`;
     }});
-    applyRoute(false);
-    loadPaperSnapshot();
-    loadStatus();
-    loadWatchlist();
-    setInterval(pollPaperState, 5000);
+    loadAccessSession().then(() => {{
+      applyRoute(false);
+      loadPaperSnapshot();
+      loadStatus();
+      loadWatchlist();
+      setInterval(pollPaperState, 5000);
+    }});
   </script>
 </body>
 </html>"""
@@ -1228,7 +1451,12 @@ def dashboard_host_for_mode(lan: bool) -> str:
     return "0.0.0.0" if lan else "127.0.0.1"
 
 
-def _dashboard_startup_lines(host: str, port: int, network_ip: str | None = None) -> tuple[str, ...]:
+def _dashboard_startup_lines(
+    host: str,
+    port: int,
+    network_ip: str | None = None,
+    access_code: str | None = None,
+) -> tuple[str, ...]:
     """Return startup lines for the selected dashboard bind host."""
     lines = [
         "QMR.CO Dashboard",
@@ -1237,7 +1465,10 @@ def _dashboard_startup_lines(host: str, port: int, network_ip: str | None = None
     if host == "0.0.0.0":
         detected_network_ip = network_ip or _detect_lan_ip()
         lines.append(f"Network URL: http://{detected_network_ip}:{port}")
+        if access_code:
+            lines.append(f"LAN Access Code: {access_code}")
         lines.append("LAN MODE - accessible to devices on the same network")
+        lines.append(LAN_ACCESS_WARNING)
     else:
         lines.append("Mode: Local read-only dashboard")
     lines.extend(
@@ -1254,10 +1485,11 @@ def run_dashboard(host: str | None = None, port: int = 8765, lan: bool = False) 
     bind_host = host or dashboard_host_for_mode(lan)
     if bind_host not in ("localhost", "127.0.0.1", "0.0.0.0"):
         raise ValueError("Dashboard host must be localhost, 127.0.0.1, or 0.0.0.0.")
-    application = DashboardApplication()
+    access_controller = DashboardAccessController(lan_enabled=lan)
+    application = DashboardApplication(access_controller=access_controller)
     handler_class = create_dashboard_handler(application)
     server = ThreadingHTTPServer((bind_host, port), handler_class)
-    for line in _dashboard_startup_lines(bind_host, port):
+    for line in _dashboard_startup_lines(bind_host, port, access_code=access_controller.access_code):
         print(line, flush=True)
     try:
         server.serve_forever()
@@ -1290,6 +1522,26 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
         def do_GET(self) -> None:
             """Return dashboard HTML or safe JSON."""
             parsed = urlparse(self.path)
+            access_state = application.access_controller.access_state(
+                self.client_address[0],
+                self.headers.get("Cookie"),
+            )
+            if not _client_address_allowed(self.client_address[0], application.access_controller):
+                _write_json(self, {"error": "Client address is not allowed."}, 403)
+                return
+            if parsed.path == "/api/lan/session":
+                _write_json(
+                    self,
+                    application.access_controller.session_status(self.client_address[0], self.headers.get("Cookie")),
+                    200,
+                )
+                return
+            if access_state is AccessState.PUBLIC:
+                if parsed.path.startswith("/api/"):
+                    _write_json(self, {"error": "LAN authorization required."}, 401)
+                    return
+                _write_html(self, render_lan_access_html(), 401)
+                return
             if parsed.path in ("/", "/index.html"):
                 _write_html(self, render_landing_html())
                 return
@@ -1309,14 +1561,49 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
             """Handle dashboard-local watchlist mutations only."""
             parsed = urlparse(self.path)
             if not parsed.path.startswith("/api/"):
-                self.send_error(404, "Not Found")
+                _write_json(self, {"error": "Not found."}, 404)
+                return
+            if not _client_address_allowed(self.client_address[0], application.access_controller):
+                _write_json(self, {"error": "Client address is not allowed."}, 403)
                 return
             payload, body_error = _read_json_body(self)
             if body_error is not None:
                 _write_json(self, {"error": body_error}, 400)
                 return
+            if parsed.path == "/api/lan/authorize":
+                status, response_payload, headers = application.access_controller.authorize(
+                    self.client_address[0],
+                    str(payload.get("access_code", "")),
+                    self.headers.get("Cookie"),
+                )
+                _write_json(self, response_payload, status, headers)
+                return
+            valid, status, response_payload, _ = application.access_controller.validate_state_change(
+                self.client_address[0],
+                self.headers.get("Cookie"),
+                self.headers.get("X-QMR-CSRF-Token"),
+            )
+            if not valid:
+                _write_json(self, response_payload, status)
+                return
             status, response_payload = application.handle_api_post(parsed.path, payload)
             _write_json(self, response_payload, status)
+
+        def do_PUT(self) -> None:
+            """Reject unsupported state-changing methods safely."""
+            _write_json(self, {"error": "Method not allowed."}, 405)
+
+        def do_PATCH(self) -> None:
+            """Reject unsupported state-changing methods safely."""
+            _write_json(self, {"error": "Method not allowed."}, 405)
+
+        def do_DELETE(self) -> None:
+            """Reject unsupported state-changing methods safely."""
+            _write_json(self, {"error": "Method not allowed."}, 405)
+
+        def do_OPTIONS(self) -> None:
+            """Reject unsupported preflight requests safely."""
+            _write_json(self, {"error": "Method not allowed."}, 405)
 
         def log_message(self, format: str, *args: object) -> None:
             """Silence per-request logs for a calmer local dashboard."""
@@ -1325,35 +1612,69 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
     return DashboardRequestHandler
 
 
-def _write_html(handler: BaseHTTPRequestHandler, html: str) -> None:
+def _write_html(
+    handler: BaseHTTPRequestHandler,
+    html: str,
+    status: int = 200,
+    headers: tuple[tuple[str, str], ...] = (),
+) -> None:
     """Write a local dashboard HTML response."""
     body = html.encode("utf-8")
-    handler.send_response(200)
+    handler.send_response(status)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
-    handler.send_header("Cache-Control", "no-store")
+    _send_security_headers(handler)
+    for header, value in headers:
+        handler.send_header(header, value)
     handler.end_headers()
     handler.wfile.write(body)
 
 
-def _write_json(handler: BaseHTTPRequestHandler, payload: dict[str, object], status: int = 200) -> None:
+def _write_json(
+    handler: BaseHTTPRequestHandler,
+    payload: dict[str, object],
+    status: int = 200,
+    headers: tuple[tuple[str, str], ...] = (),
+) -> None:
     """Write a safe JSON response."""
     body = json.dumps(payload, sort_keys=True).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
-    handler.send_header("Cache-Control", "no-store")
+    _send_security_headers(handler)
+    for header, value in headers:
+        handler.send_header(header, value)
     handler.end_headers()
     handler.wfile.write(body)
 
 
+def _send_security_headers(handler: BaseHTTPRequestHandler) -> None:
+    """Add conservative security headers to dashboard responses."""
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("X-Frame-Options", "DENY")
+    handler.send_header("Referrer-Policy", "no-referrer")
+    handler.send_header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    handler.send_header(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    )
+
+
 def _read_json_body(handler: BaseHTTPRequestHandler) -> tuple[dict[str, object], str | None]:
     """Read and validate a small JSON body from a local dashboard request."""
-    length = int(handler.headers.get("Content-Length", "0") or "0")
+    try:
+        length = int(handler.headers.get("Content-Length", "0") or "0")
+    except ValueError:
+        return {}, "Invalid Content-Length header."
     if length <= 0:
         return {}, None
-    if length > 16_384:
+    if length > REQUEST_BODY_LIMIT_BYTES:
         return {}, "Request body is too large."
+    content_type = handler.headers.get("Content-Type", "")
+    if "application/json" not in content_type.lower():
+        return {}, "Content-Type must be application/json."
     body = handler.rfile.read(length).decode("utf-8")
     try:
         payload = json.loads(body)
@@ -1435,6 +1756,43 @@ def _normalize_symbol(symbol: str) -> str:
     if not normalized_symbol or not compact_symbol.isalpha() or len(compact_symbol) > 10:
         raise ValueError("Invalid symbol. Not added.")
     return normalized_symbol
+
+
+def _cookie_value(cookie_header: str, cookie_name: str) -> str | None:
+    """Return one cookie value from a simple Cookie header."""
+    for part in cookie_header.split(";"):
+        if "=" not in part:
+            continue
+        name, value = part.strip().split("=", 1)
+        if name == cookie_name:
+            return value
+    return None
+
+
+def _client_address_allowed(client_ip: str, access_controller: DashboardAccessController) -> bool:
+    """Return whether a request should be accepted from the observed client address."""
+    if _is_loopback_address(client_ip):
+        return True
+    if not access_controller.lan_enabled:
+        return False
+    return _is_private_or_loopback_address(client_ip)
+
+
+def _is_loopback_address(client_ip: str) -> bool:
+    """Return whether an observed address is loopback."""
+    try:
+        return ipaddress.ip_address(client_ip).is_loopback
+    except ValueError:
+        return False
+
+
+def _is_private_or_loopback_address(client_ip: str) -> bool:
+    """Return whether an observed address is private or loopback."""
+    try:
+        address = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback
 
 
 def _is_watchable_result(result: MarketDataResult) -> bool:

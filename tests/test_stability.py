@@ -16,9 +16,12 @@ from urllib.error import HTTPError
 from ptb1.assets import Asset, AssetType, create_crypto_asset, create_etf_asset, create_stock_asset
 from ptb1.cli import build_parser, main as cli_main
 from ptb1.dashboard import (
+    AccessState,
     DashboardApplication,
+    DashboardAccessController,
     DashboardSession,
     DashboardState,
+    LAN_ACCESS_WARNING,
     _dashboard_startup_lines,
     _market_status_indicator,
     _render_card,
@@ -769,12 +772,14 @@ class DashboardShellTests(unittest.TestCase):
         self.assertTrue(args.lan)
         self.assertEqual(dashboard_host_for_mode(True), "0.0.0.0")
 
-        lines = _dashboard_startup_lines("0.0.0.0", 8765, network_ip="192.168.1.41")
+        lines = _dashboard_startup_lines("0.0.0.0", 8765, network_ip="192.168.1.41", access_code="dev-code")
 
         self.assertIn("Local URL: http://127.0.0.1:8765", lines)
         self.assertIn("Network URL: http://192.168.1.41:8765", lines)
+        self.assertIn("LAN Access Code: ", "\n".join(lines))
         self.assertIn("LAN MODE - accessible to devices on the same network", lines)
         self.assertIn("PAPER TRADE ONLY - no real trading", lines)
+        self.assertIn(LAN_ACCESS_WARNING, lines)
 
     def test_cli_dashboard_dispatch_preserves_default_and_lan_modes(self) -> None:
         """CLI dashboard commands should pass the requested bind mode to run_dashboard."""
@@ -787,6 +792,121 @@ class DashboardShellTests(unittest.TestCase):
             cli_main(["--dashboard", "--lan"])
 
         dashboard.assert_called_once_with(lan=True)
+
+    def test_lan_access_controller_uses_only_approved_access_states(self) -> None:
+        """LAN access should expose only the approved narrow access states."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+
+        states = {
+            controller.access_state("127.0.0.1").value,
+            controller.access_state("192.168.1.41").value,
+        }
+
+        self.assertEqual({state.value for state in AccessState}, {"PUBLIC", "LOCAL_TRUSTED", "LAN_AUTHORIZED"})
+        self.assertEqual(states, {"LOCAL_TRUSTED", "PUBLIC"})
+
+    def test_lan_authorization_exchanges_code_for_session_token(self) -> None:
+        """The temporary access code should not be stored as the browser session token."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+
+        status, payload, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["authorized"])
+        self.assertEqual(payload["access_state"], AccessState.LAN_AUTHORIZED.value)
+        self.assertIn("csrf_token", payload)
+        self.assertIn("qmr_lan_session=", cookie)
+        self.assertNotIn("dev-code", cookie)
+        self.assertEqual(controller.access_state("192.168.1.41", cookie), AccessState.LAN_AUTHORIZED)
+
+    def test_lan_authorization_rotates_only_that_browser_session(self) -> None:
+        """A successful reauthorization should replace the submitted browser session."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+
+        _, _, first_headers = controller.authorize("192.168.1.41", "dev-code")
+        first_cookie = dict(first_headers)["Set-Cookie"]
+        _, _, second_headers = controller.authorize("192.168.1.41", "dev-code", first_cookie)
+        second_cookie = dict(second_headers)["Set-Cookie"]
+
+        self.assertNotEqual(first_cookie, second_cookie)
+        self.assertEqual(controller.access_state("192.168.1.41", first_cookie), AccessState.PUBLIC)
+        self.assertEqual(controller.access_state("192.168.1.41", second_cookie), AccessState.LAN_AUTHORIZED)
+
+    def test_failed_lan_attempt_does_not_invalidate_existing_authorized_session(self) -> None:
+        """Failed login attempts should not disrupt an existing valid LAN session."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+        _, _, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+
+        bad_status, _, _ = controller.authorize("192.168.1.41", "bad-code", cookie)
+
+        self.assertEqual(bad_status, 401)
+        self.assertEqual(controller.access_state("192.168.1.41", cookie), AccessState.LAN_AUTHORIZED)
+
+    def test_lan_session_expires_after_inactivity(self) -> None:
+        """LAN sessions should expire after the configured inactivity window."""
+        now = [1000.0]
+        controller = DashboardAccessController(
+            lan_enabled=True,
+            access_code="dev-code",
+            now=lambda: now[0],
+            inactivity_seconds=1800,
+        )
+        _, _, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+
+        now[0] += 1801
+
+        self.assertEqual(controller.access_state("192.168.1.41", cookie), AccessState.PUBLIC)
+
+    def test_lan_authorization_rate_limits_per_client_and_global_attempts(self) -> None:
+        """Access-code attempts should be rate limited per client and globally."""
+        per_client = DashboardAccessController(
+            lan_enabled=True,
+            access_code="dev-code",
+            per_client_attempt_limit=2,
+            global_attempt_limit=99,
+        )
+
+        self.assertEqual(per_client.authorize("192.168.1.41", "bad-code")[0], 401)
+        self.assertEqual(per_client.authorize("192.168.1.41", "bad-code")[0], 401)
+        self.assertEqual(per_client.authorize("192.168.1.41", "bad-code")[0], 429)
+
+        global_limit = DashboardAccessController(
+            lan_enabled=True,
+            access_code="dev-code",
+            per_client_attempt_limit=99,
+            global_attempt_limit=2,
+        )
+
+        self.assertEqual(global_limit.authorize("192.168.1.41", "bad-code")[0], 401)
+        self.assertEqual(global_limit.authorize("192.168.1.42", "bad-code")[0], 401)
+        self.assertEqual(global_limit.authorize("192.168.1.43", "bad-code")[0], 429)
+
+    def test_lan_state_changes_require_csrf_token(self) -> None:
+        """LAN-authorized POST requests should require the matching CSRF token."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+        _, payload, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+        csrf_token = str(payload["csrf_token"])
+
+        missing = controller.validate_state_change("192.168.1.41", cookie, None)
+        wrong = controller.validate_state_change("192.168.1.41", cookie, "wrong")
+        correct = controller.validate_state_change("192.168.1.41", cookie, csrf_token)
+
+        self.assertEqual(missing[1], 403)
+        self.assertEqual(wrong[1], 403)
+        self.assertTrue(correct[0])
+
+    def test_lan_access_restricts_public_client_addresses(self) -> None:
+        """LAN authorization should reject non-private non-loopback client addresses."""
+        controller = DashboardAccessController(lan_enabled=True, access_code="dev-code")
+
+        status, payload, _ = controller.authorize("8.8.8.8", "dev-code")
+
+        self.assertEqual(status, 403)
+        self.assertIn("private or loopback", payload["error"])
 
     def test_status_api_returns_safe_json_payload(self) -> None:
         """Status API should expose read-only platform facts only."""
@@ -920,6 +1040,132 @@ class DashboardShellTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 400)
         self.assertIn("Malformed JSON", body)
         self.assertNotIn("Traceback", body)
+
+    def test_dashboard_responses_include_security_headers(self) -> None:
+        """Dashboard HTTP responses should include conservative security headers."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            response = urlopen(f"http://localhost:{port}/api/status", timeout=2)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
+        self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
+
+    def test_dashboard_rejects_unsupported_methods_safely(self) -> None:
+        """Unsupported HTTP methods should return a safe 405 JSON response."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(f"http://localhost:{port}/api/status", method="PUT")
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=2)
+            body = raised.exception.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 405)
+        self.assertIn("Method not allowed", body)
+        self.assertNotIn("Traceback", body)
+
+    def test_dashboard_rejects_oversized_json_body(self) -> None:
+        """State-changing request bodies should remain bounded."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(
+                f"http://localhost:{port}/api/watchlist/add",
+                data=json.dumps({"symbol": "A" * 20_000}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=2)
+            body = raised.exception.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 400)
+        self.assertIn("Request body is too large", body)
+
+    def test_dashboard_ignores_forwarded_client_address_headers(self) -> None:
+        """Forwarded client-address headers should not replace the socket address."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider(), lan_enabled=True)
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(
+                f"http://localhost:{port}/api/status",
+                headers={"X-Forwarded-For": "8.8.8.8", "Forwarded": "for=8.8.8.8"},
+                method="GET",
+            )
+            response = urlopen(request, timeout=2)
+            payload = json.loads(response.read().decode("utf-8"))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertFalse(payload["real_trading_enabled"])
+
+    def test_local_trusted_post_does_not_require_csrf(self) -> None:
+        """Localhost dashboard behavior should remain unchanged by LAN CSRF protection."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider(), lan_enabled=True)
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(
+                f"http://localhost:{port}/api/watchlist/add",
+                data=json.dumps({"symbol": "AMD"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            response = urlopen(request, timeout=2)
+            payload = json.loads(response.read().decode("utf-8"))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertTrue(payload["added"])
 
     def test_dashboard_handler_serves_landing_and_app_routes(self) -> None:
         """The local server should serve public and app routes without blank views."""

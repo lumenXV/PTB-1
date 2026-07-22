@@ -63,7 +63,11 @@ For development on devices connected to the same LAN, explicitly enable LAN mode
 python -m ptb1 --dashboard --lan
 ```
 
-LAN mode binds to `0.0.0.0:8765` and prints both a local URL and a network URL. It does not add authentication, internet exposure, tunneling, port forwarding, cloud deployment, broker access, or real trading. `real_trading_enabled` remains false.
+LAN mode binds to `0.0.0.0:8765` and prints both a local URL and a network URL. It also prints a temporary LAN access code. A LAN browser must submit that code before it can use the dashboard; the server then issues a separate in-memory session token and CSRF token. Sessions expire after 30 minutes of inactivity and are invalidated when the dashboard server restarts.
+
+The temporary LAN access code protects against accidental or casual unauthorized access. It does not provide confidentiality against a compromised or hostile network because development LAN mode does not use HTTPS.
+
+LAN mode does not add accounts, production authentication, internet exposure, tunneling, port forwarding, cloud deployment, broker access, or real trading. `real_trading_enabled` remains false.
 
 Local routes:
 
