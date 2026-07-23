@@ -4,6 +4,8 @@ All notable QMR.CO changes should be recorded here in plain language.
 
 ## Unreleased
 
+- Improved the local dashboard's mobile responsive UX with touch-friendly navigation, skip-link access, safe-area spacing, compact cards, responsive tables, and clearer mobile empty states.
+- Preserved existing dashboard APIs, LAN access hardening, provider behavior, fake-money paper controls, and continued no-real-trading/no-broker behavior.
 - Added explicit development LAN access for the local dashboard with `python -m ptb1 --dashboard --lan`.
 - Preserved secure dashboard default binding at `127.0.0.1:8765`; LAN mode must be requested and binds to `0.0.0.0:8765`.
 - Added startup output for LAN mode showing local and network URLs plus same-network and paper-trade-only warnings.

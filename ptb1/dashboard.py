@@ -568,6 +568,7 @@ def _render_design_tokens() -> str:
       --qmr-radius-pill: 999px;
       --qmr-shadow-card: 0 20px 70px rgba(0, 0, 0, 0.35);
       --qmr-shadow-glow: 0 0 38px rgba(56, 164, 255, 0.16);
+      --qmr-touch-target: 44px;
       --qmr-status-ok: var(--qmr-success);
       --qmr-status-warning: var(--qmr-warning);
       --qmr-status-danger: var(--qmr-danger);
@@ -576,6 +577,7 @@ def _render_design_tokens() -> str:
       background: var(--qmr-bg);
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -583,8 +585,12 @@ def _render_design_tokens() -> str:
         radial-gradient(circle at 16% 0%, rgba(56, 164, 255, 0.18), transparent 28rem),
         linear-gradient(135deg, #04060c 0%, #07101e 48%, #05070d 100%);
       color: var(--qmr-text);
+      overflow-x: hidden;
     }
     button, input, select, textarea { font: inherit; }
+    button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+    .skip-link { position: fixed; left: 1rem; top: 0.75rem; z-index: 20; transform: translateY(-180%); border: 1px solid var(--qmr-border-strong); border-radius: var(--qmr-radius-control); background: var(--qmr-panel-strong); color: var(--qmr-text); padding: 0.7rem 0.9rem; text-decoration: none; }
+    .skip-link:focus { transform: translateY(0); outline: 2px solid var(--qmr-blue); outline-offset: 2px; }
     .shell { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
     aside {
       border-right: 1px solid var(--qmr-border);
@@ -606,6 +612,7 @@ def _render_design_tokens() -> str:
       padding: 0.78rem 0.95rem;
       border-radius: var(--qmr-radius-control);
       cursor: pointer;
+      min-height: var(--qmr-touch-target);
       transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
     }
     nav button:hover, nav button.active {
@@ -613,7 +620,7 @@ def _render_design_tokens() -> str:
       background: var(--qmr-blue-dim);
       border-color: var(--qmr-border-strong);
     }
-    main { padding: var(--qmr-space-xl); }
+    main { min-width: 0; padding: var(--qmr-space-xl); }
     .topbar {
       display: flex;
       align-items: flex-start;
@@ -658,6 +665,7 @@ def _render_design_tokens() -> str:
       box-shadow: var(--qmr-shadow-card);
       padding: 1.2rem;
       min-height: 160px;
+      min-width: 0;
       backdrop-filter: blur(18px);
     }
     .card.wide { grid-column: span 2; }
@@ -706,10 +714,12 @@ def _render_design_tokens() -> str:
       background: linear-gradient(135deg, rgba(56, 164, 255, 0.24), rgba(56, 164, 255, 0.10));
       color: var(--qmr-text);
       border-radius: var(--qmr-radius-control);
+      min-height: var(--qmr-touch-target);
       padding: 0.78rem 0.95rem;
       cursor: pointer;
     }
-    .table-wrap { overflow-x: auto; }
+    button.action.secondary { border-color: var(--qmr-border); background: rgba(148, 163, 184, 0.08); color: var(--qmr-text-soft); }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { width: 100%; border-collapse: collapse; color: var(--qmr-text-soft); }
     th, td { text-align: left; padding: 0.72rem 0.65rem; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
     th { color: var(--qmr-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -740,7 +750,7 @@ def _render_design_tokens() -> str:
       box-shadow: 0 0 22px rgba(56, 164, 255, 0.38);
       font-weight: 900;
     }
-    .public-nav, .header-actions { display: inline-flex; align-items: center; gap: 1.8rem; }
+    .public-nav, .header-actions { display: inline-flex; align-items: center; gap: 1.8rem; min-width: 0; }
     .public-nav a { color: var(--qmr-text-muted); font-size: 0.86rem; text-decoration: none; }
     .header-actions .ghost-link { color: var(--qmr-text-soft); font-weight: 700; }
     .primary-cta {
@@ -782,9 +792,10 @@ def _render_design_tokens() -> str:
       background: rgba(12, 20, 31, 0.9);
       color: var(--qmr-text-muted);
       padding: 0.45rem 0.55rem 0.45rem 0.9rem;
+      min-height: var(--qmr-touch-target);
     }
     .search-box input { margin: 0; border: 0; background: transparent; padding: 0.45rem; color: var(--qmr-text); }
-    .search-submit { border: 1px solid rgba(56,164,255,.45); background: rgba(56,164,255,.14); color: var(--qmr-blue-strong); border-radius: 7px; padding: .55rem .75rem; font-weight: 800; }
+    .search-submit { min-height: var(--qmr-touch-target); border: 1px solid rgba(56,164,255,.45); background: rgba(56,164,255,.14); color: var(--qmr-blue-strong); border-radius: 7px; padding: .55rem .75rem; font-weight: 800; }
     a { color: inherit; }
     .market-dot { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--qmr-text-muted); font-size: 0.8rem; text-transform: uppercase; }
     .market-dot::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #64748b; box-shadow: 0 0 12px rgba(100,116,139,.45); }
@@ -829,18 +840,57 @@ def _render_design_tokens() -> str:
     .watch-row { display: grid; grid-template-columns: 3.2rem 1fr auto auto; gap: 0.8rem; align-items: center; padding: 0.7rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
     .watch-symbol { border-radius: 7px; background: rgba(56, 164, 255, 0.18); color: var(--qmr-blue-strong); font-weight: 900; padding: 0.45rem; text-align: center; }
     .risk-meter { height: 0.35rem; border-radius: 999px; background: linear-gradient(90deg, var(--qmr-success), var(--qmr-warning), #fb923c); margin-top: 1rem; }
+    .mobile-only { display: none; }
     @media (max-width: 920px) {
       .shell { grid-template-columns: 1fr; }
       aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--qmr-border); }
       .app-header { position: static; height: auto; padding: 1rem; flex-direction: column; align-items: stretch; }
       .public-nav, .header-actions { flex-wrap: wrap; gap: 0.8rem; }
-      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      nav { display: flex; gap: 0.55rem; overflow-x: auto; padding-bottom: 0.15rem; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+      nav button { flex: 0 0 auto; min-width: 9.5rem; scroll-snap-align: start; text-align: center; }
       main { padding: 1rem; }
       .topbar, .command-row { flex-direction: column; align-items: stretch; }
       .grid, .kpi-strip, .dashboard-columns, .brief-grid, .asset-score-grid { grid-template-columns: 1fr; }
       .card.wide, .card.full { grid-column: auto; }
       .input-row, .form-row { flex-direction: column; align-items: stretch; }
       .sidebar-footer { position: static; margin-top: 1rem; }
+      .mobile-only { display: block; }
+    }
+    @media (max-width: 720px) {
+      body { background: linear-gradient(180deg, #04070d 0%, #07101e 52%, #05070d 100%); }
+      .app-header { gap: 0.85rem; padding: calc(0.85rem + env(safe-area-inset-top)) 0.9rem 0.85rem; }
+      .brand-lockup { font-size: 1rem; }
+      .logo-mark { width: 1.75rem; height: 1.75rem; }
+      .public-nav { width: 100%; overflow-x: auto; gap: 1rem; padding-bottom: 0.15rem; -webkit-overflow-scrolling: touch; }
+      .header-actions { width: 100%; justify-content: space-between; gap: 0.7rem; }
+      .primary-cta, .hero-actions .secondary { min-height: var(--qmr-touch-target); display: inline-flex; align-items: center; justify-content: center; }
+      aside { padding: 1rem 0.9rem; }
+      .sidebar-kicker { margin-bottom: 0.5rem; }
+      main { padding: 0.9rem; }
+      .command-row { gap: 0.75rem; margin-bottom: 1.1rem; }
+      .search-box { flex-direction: column; align-items: stretch; padding: 0.75rem; }
+      .search-submit { width: 100%; }
+      .hero-line h1 { font-size: 1.35rem; line-height: 1.2; }
+      .badges.safety-banner { position: sticky; top: 0; z-index: 7; margin: 0 -0.9rem 1rem; padding: 0.75rem 0.9rem; background: rgba(5, 7, 13, 0.94); border-block: 1px solid var(--qmr-border); backdrop-filter: blur(18px); }
+      .badge, .status-pill { min-height: 2rem; font-size: 0.68rem; }
+      .posture-card, .card, .kpi-card { padding: 0.95rem; }
+      .asset-header, .watch-row, .metric, .market-card { gap: 0.55rem; }
+      .asset-header { flex-direction: column; }
+      .watch-row { grid-template-columns: 3rem 1fr; }
+      .watch-row strong, .watch-row span:last-child { grid-column: 2; }
+      .tab-strip { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .tab-strip span { flex: 0 0 auto; }
+      footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+    }
+    @media (max-width: 460px) {
+      .public-nav a, .header-actions a { font-size: 0.78rem; }
+      .header-actions { flex-direction: column; align-items: stretch; }
+      .primary-cta { width: 100%; }
+      nav button { min-width: 8.25rem; padding-inline: 0.75rem; }
+      .kpi-value { font-size: 1rem; }
+      .input-row, .form-row, .hero-actions { gap: 0.55rem; }
+      .input-row button, .form-row button { width: 100%; }
+      th, td { padding: 0.62rem 0.5rem; }
     }
   </style>"""
 
@@ -1027,16 +1077,18 @@ def render_dashboard_html(state: DashboardState) -> str:
   <title>QMR.CO Local Dashboard</title>
   {_render_design_tokens()}
 </head>
-<body>
+<body data-mobile-phase="9B">
+  <a class="skip-link" href="#dashboard-main">Skip to dashboard content</a>
   <header class="app-header">
     <div class="brand-lockup"><span class="logo-mark">Q</span><span>QMR.CO</span></div>
     <div class="public-nav"><a href="/">Platform</a><a href="/app/research">Research</a><a href="/app/strategies">Strategies</a><a href="/membership">Membership</a><a href="/about">About</a></div>
     <div class="header-actions"><a class="ghost-link" href="/sign-in">Sign In - Coming Soon</a><a class="primary-cta" href="/app">Start researching</a></div>
   </header>
   <div class="shell">
-    <aside>
+    <aside aria-label="Application navigation">
       <div class="sidebar-kicker">Paper Research Account</div>
-      <nav aria-label="Dashboard sections">
+      <div class="mobile-only empty-state"><strong>Mobile dashboard</strong>Swipe the navigation row to move between sections. Controls remain fake-money only.</div>
+      <nav aria-label="Dashboard sections" data-mobile-nav="true">
         <button class="active" data-section="dashboard" data-route="/app">Overview</button>
         <button data-section="markets" data-route="/app/market">Market</button>
         <button data-section="research" data-route="/app/research">Research</button>
@@ -1049,7 +1101,7 @@ def render_dashboard_html(state: DashboardState) -> str:
       </nav>
       <a class="sidebar-footer" href="/">Public site</a>
     </aside>
-    <main>
+    <main id="dashboard-main" tabindex="-1">
       <section class="command-row">
         <form class="search-box" id="symbol-search"><input id="symbol-search-input" placeholder="Search a company, ticker, sector, or question" aria-label="Symbol search"><button class="search-submit" type="submit">Research</button></form>
         <div class="market-dot {market_indicator[0]}">{market_indicator[1]}</div>
@@ -1058,7 +1110,7 @@ def render_dashboard_html(state: DashboardState) -> str:
         <span class="badge blue">Paper Mode</span>
         <h1>Good morning. <span>Here is what matters today.</span></h1>
       </div>
-      <div class="badges">
+      <div class="badges safety-banner">
         <span class="badge blue">Local Mode</span>
         <span class="badge blue">READ ONLY</span>
         <span class="badge red">PAPER TRADE ONLY</span>

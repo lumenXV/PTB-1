@@ -563,6 +563,33 @@ class DashboardShellTests(unittest.TestCase):
         self.assertIn("Names in focus", output)
         self.assertIn("Strategy Agreement", output)
 
+    def test_dashboard_html_contains_mobile_responsive_landmarks(self) -> None:
+        """Milestone 9B should add mobile UX structure without changing APIs."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn('data-mobile-phase="9B"', output)
+        self.assertIn('class="skip-link" href="#dashboard-main"', output)
+        self.assertIn('id="dashboard-main" tabindex="-1"', output)
+        self.assertIn('data-mobile-nav="true"', output)
+        self.assertIn("Swipe the navigation row", output)
+        self.assertIn("@media (max-width: 720px)", output)
+        self.assertIn("@media (max-width: 460px)", output)
+        self.assertIn("--qmr-touch-target: 44px", output)
+        self.assertIn("env(safe-area-inset-top)", output)
+        self.assertIn("-webkit-overflow-scrolling: touch", output)
+
+    def test_dashboard_mobile_polish_preserves_safety_boundaries(self) -> None:
+        """Responsive polish must keep safety labels and avoid real-trading controls."""
+        output = render_dashboard_html(build_dashboard_state())
+
+        self.assertIn("PAPER TRADE ONLY", output)
+        self.assertIn("No real trading", output)
+        self.assertIn("No broker connected", output)
+        self.assertNotIn("Connect Broker", output)
+        self.assertNotIn("Start Trading", output)
+        self.assertNotIn(">Buy<", output)
+        self.assertNotIn(">Sell<", output)
+
     def test_landing_html_ctas_target_application_routes(self) -> None:
         """The public landing page should route CTAs into the local application."""
         output = render_landing_html()
