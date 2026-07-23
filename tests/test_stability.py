@@ -860,6 +860,53 @@ class DashboardShellTests(unittest.TestCase):
 
         self.assertEqual(controller.access_state("192.168.1.41", cookie), AccessState.PUBLIC)
 
+    def test_lan_cookie_refresh_tracks_sliding_inactivity_timeout(self) -> None:
+        """Refreshing an active session should extend browser cookie lifetime."""
+        now = [1000.0]
+        controller = DashboardAccessController(
+            lan_enabled=True,
+            access_code="dev-code",
+            now=lambda: now[0],
+            inactivity_seconds=1800,
+        )
+        _, _, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+
+        now[0] += 1200
+        refreshed_headers = controller.sliding_cookie_headers("192.168.1.41", cookie)
+        refreshed_cookie = dict(refreshed_headers)["Set-Cookie"]
+        now[0] += 1000
+
+        self.assertIn("Max-Age=1800", refreshed_cookie)
+        self.assertEqual(controller.access_state("192.168.1.41", refreshed_cookie), AccessState.LAN_AUTHORIZED)
+
+    def test_lan_cookie_refresh_only_for_valid_active_sessions(self) -> None:
+        """Cookie refresh should not run for public, expired, or wrong-client sessions."""
+        now = [1000.0]
+        controller = DashboardAccessController(
+            lan_enabled=True,
+            access_code="dev-code",
+            now=lambda: now[0],
+            inactivity_seconds=1800,
+        )
+
+        self.assertEqual(controller.sliding_cookie_headers("192.168.1.41", None), ())
+
+        _, _, headers = controller.authorize("192.168.1.41", "dev-code")
+        cookie = dict(headers)["Set-Cookie"]
+        valid_headers = controller.sliding_cookie_headers("192.168.1.41", cookie)
+        valid_cookie = dict(valid_headers)["Set-Cookie"]
+
+        self.assertIn("Path=/", valid_cookie)
+        self.assertIn("HttpOnly", valid_cookie)
+        self.assertIn("SameSite=Strict", valid_cookie)
+        self.assertIn("Max-Age=1800", valid_cookie)
+        self.assertEqual(controller.sliding_cookie_headers("192.168.1.42", cookie), ())
+
+        now[0] += 1801
+
+        self.assertEqual(controller.sliding_cookie_headers("192.168.1.41", cookie), ())
+
     def test_lan_authorization_rate_limits_per_client_and_global_attempts(self) -> None:
         """Access-code attempts should be rate limited per client and globally."""
         per_client = DashboardAccessController(
@@ -1040,6 +1087,98 @@ class DashboardShellTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 400)
         self.assertIn("Malformed JSON", body)
         self.assertNotIn("Traceback", body)
+
+    def test_dashboard_rejects_invalid_utf8_json_without_raw_exception(self) -> None:
+        """Invalid UTF-8 request bodies should receive a safe 400 response."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            request = Request(
+                f"http://localhost:{port}/api/watchlist/add",
+                data=b"\xff\xfe",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=2)
+            body = raised.exception.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 400)
+        self.assertIn("valid UTF-8 JSON", body)
+        self.assertNotIn("Traceback", body)
+
+    def test_dashboard_strictly_parses_json_content_type(self) -> None:
+        """Only application/json with optional parameters should be accepted."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+            from urllib.request import Request
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            bad_request = Request(
+                f"http://localhost:{port}/api/watchlist/add",
+                data=json.dumps({"symbol": "AMD"}).encode("utf-8"),
+                headers={"Content-Type": "application/jsonx"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(bad_request, timeout=2)
+            bad_body = raised.exception.read().decode("utf-8")
+
+            good_request = Request(
+                f"http://localhost:{port}/api/watchlist/add",
+                data=json.dumps({"symbol": "AMD"}).encode("utf-8"),
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                method="POST",
+            )
+            good_response = urlopen(good_request, timeout=2)
+            good_payload = json.loads(good_response.read().decode("utf-8"))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 400)
+        self.assertIn("Content-Type must be application/json", bad_body)
+        self.assertEqual(good_response.status, 200)
+        self.assertTrue(good_payload["added"])
+
+    def test_dashboard_404_uses_safe_json_and_security_headers(self) -> None:
+        """Unknown routes should avoid framework error pages and keep security headers."""
+        app = DashboardApplication(provider_manager=_FakeDashboardProvider())
+        server = ThreadingHTTPServer(("localhost", 0), create_dashboard_handler(app))
+        try:
+            import threading
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            port = server.server_address[1]
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(f"http://localhost:{port}/missing-route", timeout=2)
+            body = raised.exception.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(raised.exception.code, 404)
+        self.assertIn("Not found", body)
+        self.assertEqual(raised.exception.headers["X-Content-Type-Options"], "nosniff")
+        self.assertIn("default-src 'self'", raised.exception.headers["Content-Security-Policy"])
+        self.assertNotIn("<title>Error response</title>", body)
 
     def test_dashboard_responses_include_security_headers(self) -> None:
         """Dashboard HTTP responses should include conservative security headers."""

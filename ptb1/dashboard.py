@@ -159,8 +159,7 @@ class DashboardAccessController:
                 last_seen=self._now(),
             )
             cookie = (
-                f"{SESSION_COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Strict; "
-                f"Max-Age={self.inactivity_seconds}"
+                self._session_cookie(token)
             )
             return (
                 200,
@@ -172,6 +171,27 @@ class DashboardAccessController:
                 },
                 (("Set-Cookie", cookie),),
             )
+
+    def sliding_cookie_headers(self, client_ip: str, cookie_header: str | None) -> tuple[tuple[str, str], ...]:
+        """Refresh the browser cookie lifetime for an active LAN session."""
+        if not self.lan_enabled:
+            return ()
+        token = _cookie_value(cookie_header or "", SESSION_COOKIE_NAME)
+        if token is None:
+            return ()
+        with self._lock:
+            session = self._active_session(token, client_ip)
+            if session is None:
+                return ()
+            session.last_seen = self._now()
+            return (("Set-Cookie", self._session_cookie(token)),)
+
+    def _session_cookie(self, token: str) -> str:
+        """Build a session cookie aligned with the server inactivity timeout."""
+        return (
+            f"{SESSION_COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Strict; "
+            f"Max-Age={self.inactivity_seconds}"
+        )
 
     def validate_state_change(
         self,
@@ -1526,6 +1546,10 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
                 self.client_address[0],
                 self.headers.get("Cookie"),
             )
+            response_headers = application.access_controller.sliding_cookie_headers(
+                self.client_address[0],
+                self.headers.get("Cookie"),
+            )
             if not _client_address_allowed(self.client_address[0], application.access_controller):
                 _write_json(self, {"error": "Client address is not allowed."}, 403)
                 return
@@ -1534,6 +1558,7 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
                     self,
                     application.access_controller.session_status(self.client_address[0], self.headers.get("Cookie")),
                     200,
+                    response_headers,
                 )
                 return
             if access_state is AccessState.PUBLIC:
@@ -1543,19 +1568,19 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
                 _write_html(self, render_lan_access_html(), 401)
                 return
             if parsed.path in ("/", "/index.html"):
-                _write_html(self, render_landing_html())
+                _write_html(self, render_landing_html(), headers=response_headers)
                 return
             if parsed.path in PUBLIC_ROUTES:
-                _write_html(self, render_public_route(parsed.path))
+                _write_html(self, render_public_route(parsed.path), headers=response_headers)
                 return
             if parsed.path in APP_ROUTE_MAP:
-                _write_html(self, render_dashboard_html(application.build_state()))
+                _write_html(self, render_dashboard_html(application.build_state()), headers=response_headers)
                 return
             if parsed.path.startswith("/api/"):
                 status, payload = application.handle_api_get(parsed.path, parse_qs(parsed.query))
-                _write_json(self, payload, status)
+                _write_json(self, payload, status, response_headers)
                 return
-            self.send_error(404, "Not Found")
+            _write_json(self, {"error": "Not found."}, 404)
 
         def do_POST(self) -> None:
             """Handle dashboard-local watchlist mutations only."""
@@ -1586,8 +1611,12 @@ def create_dashboard_handler(application: DashboardApplication) -> type[BaseHTTP
             if not valid:
                 _write_json(self, response_payload, status)
                 return
+            response_headers = application.access_controller.sliding_cookie_headers(
+                self.client_address[0],
+                self.headers.get("Cookie"),
+            )
             status, response_payload = application.handle_api_post(parsed.path, payload)
-            _write_json(self, response_payload, status)
+            _write_json(self, response_payload, status, response_headers)
 
         def do_PUT(self) -> None:
             """Reject unsupported state-changing methods safely."""
@@ -1673,9 +1702,12 @@ def _read_json_body(handler: BaseHTTPRequestHandler) -> tuple[dict[str, object],
     if length > REQUEST_BODY_LIMIT_BYTES:
         return {}, "Request body is too large."
     content_type = handler.headers.get("Content-Type", "")
-    if "application/json" not in content_type.lower():
+    if not _is_json_content_type(content_type):
         return {}, "Content-Type must be application/json."
-    body = handler.rfile.read(length).decode("utf-8")
+    try:
+        body = handler.rfile.read(length).decode("utf-8")
+    except UnicodeDecodeError:
+        return {}, "Request body must be valid UTF-8 JSON."
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
@@ -1683,6 +1715,12 @@ def _read_json_body(handler: BaseHTTPRequestHandler) -> tuple[dict[str, object],
     if not isinstance(payload, dict):
         return {}, "JSON body must be an object."
     return payload, None
+
+
+def _is_json_content_type(content_type: str) -> bool:
+    """Return whether a Content-Type header is exactly JSON with optional parameters."""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type == "application/json"
 
 
 def _render_paper_summary(summary: PaperDashboardSummary | None) -> str:
